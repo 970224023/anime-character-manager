@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>角色画师管理器 V3.2</title>
+    <style>
+        :root {
+            --primary-color: #007bff; --success-color: #28a745; --danger-color: #dc3545;
+            --secondary-color: #6c757d; --light-gray: #f8f9fa; --dark-gray: #343a40;
+            --border-color: #dee2e6; --card-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            --edit-mode-bg: #e6f4ea;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: var(--font-family); margin: 0; background-color: #f0f2f5;
+            color: var(--dark-gray); line-height: 1.5; display: flex;
+            flex-direction: column; height: 100vh; overflow: hidden;
+        }
+
+        /* --- 头部区域 --- */
+        .app-header {
+            background-color: #fff; padding: 0.75rem 1.5rem; border-bottom: 1px solid var(--border-color);
+            display: flex; justify-content: space-between; align-items: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05); flex-shrink: 0; z-index: 100;
+        }
+        .header-left { display: flex; align-items: center; gap: 1.5rem; }
+        .app-header h1 { margin: 0; font-size: 1.5rem; }
+        .header-actions { display: flex; align-items: center; gap: 0.75rem; }
+        .header-actions button {
+            padding: 0.5rem 1rem; font-size: 0.9rem; cursor: pointer; border: 1px solid var(--primary-color);
+            background-color: var(--primary-color); color: #fff; border-radius: 5px;
+            transition: background-color 0.2s; display: flex; align-items: center; gap: 0.25rem;
+        }
+        .header-actions button:hover:not(:disabled) { background-color: #0056b3; }
+        .header-actions button:disabled { background-color: var(--secondary-color); border-color: var(--secondary-color); cursor: not-allowed; opacity: 0.65; }
+        .header-actions button.save-btn { background-color: var(--success-color); border-color: var(--success-color); }
+        .header-actions button.save-btn:hover:not(:disabled) { background-color: #218838; }
+        .header-actions .dropdown { position: relative; }
+        .header-actions .dropdown-content { display: none; position: absolute; right: 0; top: 100%; background-color: white; min-width: 160px; box-shadow: 0 8px 16px 0 rgba(0,0,0,0.2); z-index: 1; border-radius: 5px; overflow: hidden; border: 1px solid var(--border-color); }
+        .header-actions .dropdown-content button { width: 100%; background-color: white; color: black; border: none; text-align: left; border-radius: 0; border-bottom: 1px solid var(--border-color); }
+        .header-actions .dropdown-content button:last-child { border-bottom: none; }
+        .header-actions .dropdown-content button:hover { background-color: #f1f1f1; }
+        .header-actions .dropdown:hover .dropdown-content { display: block; }
+        
+        /* --- 页签导航栏 --- */
+        .tab-navigation button {
+            padding: 0.5rem 1rem; font-size: 1rem; font-weight: 600; border: none;
+            background-color: transparent; cursor: pointer; color: var(--secondary-color);
+            border-radius: 5px; transition: color 0.2s, background-color 0.2s;
+        }
+        .tab-navigation button:hover { background-color: #e9ecef; }
+        .tab-navigation button.active { color: #fff; background-color: var(--primary-color); }
+        
+        /* --- V3.0: 三栏布局 --- */
+        .main-container { display: flex; flex-grow: 1; overflow: hidden; }
+
+        /* --- 左侧边栏 (分类) --- */
+        .sidebar {
+            flex: 0 0 220px; background-color: #fff; border-right: 1px solid var(--border-color);
+            display: flex; flex-direction: column; overflow: hidden;
+        }
+        .sidebar-header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 1rem; border-bottom: 1px solid var(--border-color); flex-shrink: 0;
+        }
+        .sidebar-header h2 { margin: 0; font-size: 1.2rem; }
+        .icon-btn { cursor: pointer; color: var(--secondary-color); transition: color 0.2s, transform 0.2s; }
+        .icon-btn:hover { color: var(--primary-color); transform: scale(1.1); }
+        .category-list {
+            list-style: none; padding: 1rem; margin: 0; overflow-y: auto; flex-grow: 1;
+        }
+        .category-list li {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 0.75rem 1rem; margin-bottom: 0.5rem; border-radius: 5px;
+            cursor: pointer; transition: background-color 0.2s, color 0.2s; font-weight: 500;
+        }
+        .category-list li:hover .category-edit-btn { opacity: 1; }
+        .category-list li span:first-child { word-break: break-all; margin-right: 8px; flex-grow: 1; }
+        .category-list li .count {
+            font-size: 0.8em; color: inherit; opacity: 0.7; background-color: rgba(0,0,0,0.05);
+            padding: 1px 5px; border-radius: 5px; margin-right: 8px;
+        }
+        .category-edit-btn { opacity: 0; transition: opacity 0.2s; }
+        .category-list li:hover { background-color: #e9ecef; }
+        .category-list li.active { background-color: var(--primary-color); color: #fff; }
+        .category-list li.active .count { background-color: rgba(255,255,255,0.2); }
+        .category-list li.active .icon-btn { color: #fff; }
+
+        /* --- 中栏内容区 (卡片网格) --- */
+        .content-area {
+            flex: 1 1 auto; display: flex; flex-direction: column;
+            overflow: hidden; padding: 1.5rem; min-width: 400px;
+            transition: background-color 0.3s;
+        }
+        .content-area.edit-mode-active {
+            background-color: var(--edit-mode-bg);
+        }
+        .card-grid-container { flex-grow: 1; overflow-y: auto; padding-right: 5px; }
+        .card-grid { display: grid; gap: 1rem; }
+        .card-grid.text-mode { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+        .card-grid.gallery-mode { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+        
+        .placeholder { grid-column: 1 / -1; display: flex; justify-content: center; align-items: center; height: 100%; color: var(--secondary-color); font-size: 1.2rem; font-style: italic; }
+
+        .card {
+            position: relative; background-color: #fff; border-radius: 6px; box-shadow: var(--card-shadow);
+            cursor: pointer; transition: transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s;
+            border: 2px solid transparent;
+        }
+        .card:hover { transform: translateY(-3px); box-shadow: 0 3px 8px rgba(0,0,0,0.12); }
+        .card.selected { border-color: var(--primary-color); box-shadow: 0 0 8px rgba(0, 123, 255, 0.5); }
+        .edit-mode-active .card.selected { border-color: var(--success-color); }
+        
+        .card.text-card { height: 50px; display: flex; align-items: center; justify-content: center; padding: 1rem; }
+        .card-name { font-weight: 600; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        
+        .card.gallery-card { display: flex; flex-direction: column; }
+        .gallery-card .card-image { width: 100%; height: 200px; object-fit: cover; background-color: #eee; border-top-left-radius: 4px; border-top-right-radius: 4px; }
+        .gallery-card .card-name { padding: 0.75rem; }
+
+        /* --- 右侧详情栏 --- */
+        .detail-sidebar {
+            flex: 0 0 300px; background-color: #fff; border-left: 1px solid var(--border-color);
+            display: flex; flex-direction: column; overflow: hidden; transition: flex-basis 0.3s;
+        }
+        .detail-content { padding: 1.5rem; flex-grow: 1; overflow-y: auto; }
+        .detail-placeholder { display: flex; height: 100%; justify-content: center; align-items: center; color: var(--secondary-color); text-align: center; }
+        .detail-image { width: 100%; height: auto; border-radius: 6px; margin-bottom: 1rem; background-color: #eee; min-height: 150px; }
+        .detail-title { font-size: 1.5rem; margin: 0 0 0.5rem; }
+        .detail-source { font-size: 1rem; color: var(--secondary-color); margin-bottom: 1.5rem; }
+        .detail-section { margin-bottom: 1.5rem; }
+        .detail-section h5 { margin: 0 0 0.5rem; font-size: 0.9rem; text-transform: uppercase; color: var(--secondary-color); }
+        .detail-section p, .detail-tags { margin: 0; word-wrap: break-word; }
+        .detail-tags { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+        .detail-tag { background-color: #e9ecef; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.85rem; }
+        .detail-actions { display: flex; gap: 1rem; margin-top: 1.5rem; }
+
+        /* --- 开关 Toggle Switch --- */
+        .toggle-switch { display: flex; align-items: center; gap: 8px; color: var(--secondary-color); font-weight: 500;}
+        .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 24px; }
+        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--primary-color); }
+        input#edit-mode-toggle:checked + .slider { background-color: var(--success-color); }
+        input:checked + .slider:before { transform: translateX(20px); }
+
+        /* --- 模态框 --- */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.6); display: none; justify-content: center; align-items: center; z-index: 1000; }
+        .modal-overlay.visible { display: flex; }
+        .modal-content { background-color: #fff; padding: 2rem; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); width: 90%; max-width: 550px; max-height: 90vh; display: flex; flex-direction: column; }
+        .modal-content h3 { margin-top: 0; margin-bottom: 1.5rem; }
+        .modal-body { overflow-y: auto; padding-right: 1rem; margin-right: -1rem; }
+        .form-group { margin-bottom: 1rem; }
+        .form-group label { display: block; margin-bottom: 0.5rem; font-weight: 600; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 5px; font-size: 1rem; }
+        .form-group textarea { min-height: 80px; resize: vertical; }
+        .modal-actions { margin-top: 2rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+        .modal-actions .btn-danger { background-color: var(--danger-color); color: #fff; }
+        .modal-actions .btn-danger.confirming { background-color: #a71d2a; }
+        .modal-actions .action-group-right { display: flex; gap: 1rem; }
+        .modal-actions button, .load-confirm-modal .modal-actions button { padding: 0.6rem 1.2rem; font-size: 1rem; border-radius: 5px; border: none; cursor: pointer; }
+        .modal-actions .btn-secondary { background-color: #e9ecef; color: var(--dark-gray); }
+        .modal-actions .btn-secondary:hover { background-color: #dbe1e6; }
+        .modal-actions .btn-primary { background-color: var(--primary-color); color: #fff; }
+        .modal-actions .btn-primary:hover { background-color: #0056b3; }
+        .load-confirm-modal .modal-content { max-width: 400px; }
+        .load-confirm-modal .modal-actions { justify-content: center; }
+        #batch-import-modal .modal-content { max-width: 700px; }
+        #batch-import-modal textarea { min-height: 30vh; font-family: monospace; }
+
+        /* --- Category Index Modal --- */
+        #category-index-modal .modal-content { max-width: 800px; }
+        #category-index-modal .modal-body { padding-right: 0; margin-right: 0; }
+        .index-header { position: sticky; top: -2rem; background: #fff; padding: 1rem 0; z-index: 10; display: flex; flex-direction: column; gap: 1rem; margin: -2rem -2rem 1.5rem -2rem; padding: 1rem 2rem 0 2rem; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .alphabet-nav { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem; }
+        .alphabet-nav a { text-decoration: none; padding: 0.25rem 0.5rem; color: var(--primary-color); font-weight: bold; border-radius: 4px; cursor: pointer;}
+        .alphabet-nav a:hover { background-color: #e9ecef; }
+        .index-search-box input { width: 100%; }
+        .index-list-group-title { font-size: 1.2rem; font-weight: bold; padding: 0.5rem 0; margin-top: 1rem; border-bottom: 2px solid var(--primary-color); grid-column: 1 / -1; }
+        .index-list { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 0 1.5rem; }
+        .index-list li { padding: 0.5rem 0; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .index-list li:hover { color: var(--primary-color); }
+        
+        /* --- 提示框 (Toast) --- */
+        .toast-notification { position: fixed; bottom: 2rem; right: 2rem; background-color: var(--success-color); color: #fff; padding: 1rem 1.5rem; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); z-index: 3000; opacity: 0; visibility: hidden; transform: translateY(20px); transition: all 0.3s; }
+        .toast-notification.show { opacity: 1; visibility: visible; transform: translateY(0); }
+    </style>
+</head>
+<body>
+    <header class="app-header">
+        <div class="header-left">
+            <h1>管理器 V3.2</h1>
+            <nav class="tab-navigation">
+                <button id="tab-characters" class="active">角色</button>
+                <button id="tab-artists">画师</button>
+            </nav>
+        </div>
+        <div class="header-actions">
+            <div class="toggle-switch">
+                <label for="edit-mode-toggle">编辑</label>
+                <label class="switch"><input type="checkbox" id="edit-mode-toggle"><span class="slider"></span></label>
+            </div>
+             <div class="toggle-switch">
+                <label for="gallery-mode-toggle">图文</label>
+                <label class="switch"><input type="checkbox" id="gallery-mode-toggle" checked><span class="slider"></span></label>
+            </div>
+            <div class="dropdown">
+                <button id="tools-btn">工具</button>
+                <div class="dropdown-content">
+                    <button id="upgrade-prompt-btn">升级Prompt结构</button>
+                </div>
+            </div>
+            <button id="load-json-btn">加载</button>
+            <input type="file" id="file-input" accept=".json" style="display: none;">
+            <button id="batch-import-btn">批量导入</button>
+            <button id="add-item-btn">添加</button>
+            <button id="random-select-btn">🎲</button>
+            <button id="save-json-btn" class="save-btn">保存</button>
+        </div>
+    </header>
+
+    <main class="main-container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2 id="sidebar-title">作品分类</h2>
+                <span id="category-index-btn" class="icon-btn" title="分类索引">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                </span>
+            </div>
+            <ul class="category-list" id="category-list"></ul>
+        </aside>
+
+        <div class="content-area" id="content-area">
+            <div class="card-grid-container">
+                <div class="card-grid" id="card-grid"></div>
+            </div>
+        </div>
+
+        <aside class="detail-sidebar" id="detail-sidebar">
+            <div class="detail-content" id="detail-content">
+                <div class="detail-placeholder"><p>单击卡片查看详情</p></div>
+            </div>
+        </aside>
+    </main>
+    
+    <!-- All Modals will be injected by JS -->
+    <div class="modal-overlay" id="entry-modal"></div>
+    <div class="modal-overlay" id="batch-import-modal"></div>
+    <div class="modal-overlay" id="load-confirm-modal"></div>
+    <div class="modal-overlay" id="category-index-modal"></div>
+    <div class="modal-overlay" id="category-edit-modal"></div>
+
+    <div id="toast" class="toast-notification"></div>
+    
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- 1. STATE & CONFIG ---
+        let appData = { characters: [], artists: [] };
+        let activeView = 'characters';
+        let activeCategory = '总览';
+        let isEditMode = false;
+        let isGalleryMode = true; // [MODIFIED] Default to true
+        let currentSelectedId = null;
+        let pendingFile = null;
+        let toastTimer = null;
+        let deleteConfirmTimer = null;
+
+        // --- 2. DOM ELEMENTS MAPPING ---
+        const dom = {
+            editModeToggle: document.getElementById('edit-mode-toggle'),
+            galleryModeToggle: document.getElementById('gallery-mode-toggle'),
+            upgradePromptBtn: document.getElementById('upgrade-prompt-btn'),
+            loadBtn: document.getElementById('load-json-btn'),
+            fileInput: document.getElementById('file-input'),
+            saveBtn: document.getElementById('save-json-btn'),
+            addBtn: document.getElementById('add-item-btn'),
+            batchImportBtn: document.getElementById('batch-import-btn'),
+            randomSelectBtn: document.getElementById('random-select-btn'),
+            tabs: { characters: document.getElementById('tab-characters'), artists: document.getElementById('tab-artists') },
+            sidebarTitle: document.getElementById('sidebar-title'),
+            categoryIndexBtn: document.getElementById('category-index-btn'),
+            categoryList: document.getElementById('category-list'),
+            contentArea: document.getElementById('content-area'), // [ADDED]
+            cardGrid: document.getElementById('card-grid'),
+            detailSidebar: document.getElementById('detail-sidebar'),
+            detailContent: document.getElementById('detail-content'),
+            toast: document.getElementById('toast'),
+            entryModal: { overlay: document.getElementById('entry-modal') },
+            batchModal: { overlay: document.getElementById('batch-import-modal') },
+            loadConfirmModal: { overlay: document.getElementById('load-confirm-modal') },
+            categoryIndexModal: { overlay: document.getElementById('category-index-modal') },
+            categoryEditModal: { overlay: document.getElementById('category-edit-modal') }
+        };
+
+        // --- 3. INITIALIZE & TEMPLATES ---
+        function initializeApp() {
+            setupModalHTML();
+            addEventListeners();
+            render();
+        }
+
+        function setupModalHTML() {
+            dom.entryModal.overlay.innerHTML = `<div class="modal-content"><h3 id="modal-title"></h3><div class="modal-body"><form id="entry-form"><input type="hidden" id="entry-id"><div class="form-group"><label for="entry-name">名称 (中文)</label><input type="text" id="entry-name" required></div><div class="form-group"><label for="entry-source">出处 (中文)</label><input type="text" id="entry-source" required></div><div class="form-group"><label for="entry-prompt-name">Prompt Name (英文名)</label><input type="text" id="entry-prompt-name"></div><div class="form-group"><label for="entry-prompt-source">Prompt Source (英文作品系列名)</label><input type="text" id="entry-prompt-source"></div><div id="character-fields"><div style="display: flex; gap: 1rem;"><div class="form-group" style="flex: 1;"><label for="entry-gender">性别</label><select id="entry-gender"><option value="女">女</option><option value="男">男</option><option value="扶她">扶她</option></select></div><div class="form-group" style="flex: 1;"><label for="entry-age">年龄段</label><select id="entry-age"><option value="青年">青年</option><option value="少年">少年</option><option value="幼年">幼年</option><option value="成年">成年</option></select></div><div class="form-group" style="flex: 1;"><label for="entry-mal-id">MAL ID</label><input type="number" id="entry-mal-id" placeholder="可选"></div></div></div><div class="form-group"><label for="entry-description">简介</label><textarea id="entry-description" placeholder="角色/画师简介..."></textarea></div><div class="form-group"><label for="entry-image-url">在线图片URL</label><input type="text" id="entry-image-url" placeholder="例如: https://cdn.myanimelist.net/..."></div><div class="form-group"><label for="entry-image">本地图片文件名</label><input type="text" id="entry-image" placeholder="例如: ying.png (优先于在线URL)"></div></form></div><div class="modal-actions"><button type="button" class="btn-danger" id="modal-delete-btn" style="display: none;">删除</button><div class="action-group-right"><button type="button" class="btn-secondary" data-action="close-modal">取消</button><button type="button" class="btn-primary" id="modal-save-btn">保存</button></div></div></div>`;
+            dom.batchModal.overlay.innerHTML = `<div class="modal-content"><h3 id="batch-import-title">批量导入</h3><div class="modal-body"><div class="form-group"><label for="batch-import-text">粘贴来自“采集器”的文本</label><textarea id="batch-import-text" rows="10" placeholder="[START_ITEM]..."></textarea><small>支持V1.6+采集器生成的字段标记格式。</small></div><div id="import-preview-container" style="display:none;"></div><div id="import-summary" style="display:none;"></div></div><div class="modal-actions"><div id="batch-import-actions-initial"><button type="button" class="btn-secondary" data-action="close-modal">取消</button><button type="button" class="btn-primary" id="batch-import-preview-btn">预览</button></div><div id="batch-import-actions-preview" style="display:none;"><button type="button" class="btn-secondary" id="batch-import-back-btn">返回</button><button type="button" class="btn-primary" id="batch-import-confirm-btn">确认</button></div></div></div>`;
+            dom.loadConfirmModal.overlay.innerHTML = `<div class="modal-content"><h3>选择加载方式</h3><p>如何处理新加载的数据？</p><div class="modal-actions" style="justify-content: center;"><button type="button" class="btn-primary" id="load-action-merge">合并</button><button type="button" class="btn-danger" id="load-action-overwrite">覆盖</button><button type="button" class="btn-secondary" data-action="close-modal">取消</button></div></div>`;
+            dom.categoryIndexModal.overlay.innerHTML = `<div class="modal-content"><div class="index-header"><div class="alphabet-nav" id="alphabet-nav"></div><div class="index-search-box"><input type="search" id="index-search-input" placeholder="实时搜索分类..."></div></div><div class="modal-body"><ul id="index-list" class="index-list"></ul></div></div>`;
+            dom.categoryEditModal.overlay.innerHTML = `<div class="modal-content"><h3 id="category-edit-title">编辑分类名称</h3><div class="modal-body"><form id="category-edit-form"><div class="form-group"><label for="category-edit-source">出处 (中文)</label><input type="text" id="category-edit-source" required></div><div class="form-group"><label for="category-edit-prompt-source">Prompt Source (英文作品系列名)</label><input type="text" id="category-edit-prompt-source" required></div></form></div><div class="modal-actions"><div class="action-group-right"><button type="button" class="btn-secondary" data-action="close-modal">取消</button><button type="button" class="btn-primary" id="category-edit-save-btn">保存</button></div></div></div>`;
+        }
+
+        function addEventListeners() {
+            // [MODIFIED] Edit mode now also toggles class on content area
+            dom.editModeToggle.addEventListener('change', (e) => { 
+                isEditMode = e.target.checked; 
+                dom.contentArea.classList.toggle('edit-mode-active', isEditMode);
+            });
+            dom.galleryModeToggle.addEventListener('change', (e) => { isGalleryMode = e.target.checked; renderCards(); });
+            dom.upgradePromptBtn.addEventListener('click', upgradePromptStructure);
+            dom.loadBtn.addEventListener('click', () => dom.fileInput.click());
+            dom.fileInput.addEventListener('change', handleFileSelect);
+            dom.saveBtn.addEventListener('click', handleSaveData);
+            dom.addBtn.addEventListener('click', () => openModal('add'));
+            dom.batchImportBtn.addEventListener('click', openBatchImportModal);
+            dom.randomSelectBtn.addEventListener('click', handleRandomSelect);
+            Object.values(dom.tabs).forEach(tab => tab.addEventListener('click', handleTabClick));
+            dom.categoryList.addEventListener('click', handleCategoryClick);
+            dom.cardGrid.addEventListener('click', handleCardClick);
+            // [REMOVED] dblclick listener is no longer needed
+            dom.detailContent.addEventListener('click', handleDetailViewClick);
+            dom.categoryIndexBtn.addEventListener('click', openCategoryIndexModal);
+            
+            document.addEventListener('click', (e) => {
+                const target = e.target;
+                if(target.dataset.action === 'close-modal') { closeModal(); return; }
+                const targetId = target.id;
+                if (targetId === 'modal-save-btn') handleFormSave();
+                if (targetId === 'modal-delete-btn') handleDeleteClick();
+                if (targetId === 'load-action-merge') processFileLoad('merge');
+                if (targetId === 'load-action-overwrite') processFileLoad('overwrite');
+                if (targetId === 'batch-import-preview-btn') handleImportPreview();
+                if (targetId === 'batch-import-back-btn') showImportStep('initial');
+                if (targetId === 'batch-import-confirm-btn') handleImportConfirm();
+                if(target.classList.contains('modal-overlay')) closeModal();
+            });
+        }
+        
+        // --- 4. CORE FUNCTIONS ---
+        function render() {
+            renderCategories();
+            renderCards();
+            renderDetailView(findItemById(currentSelectedId));
+        }
+        
+        function findItemById(id) {
+            if (!id) return null;
+            return appData[activeView].find(item => item.id === id);
+        }
+
+        function renderCategories() {
+            const currentData = appData[activeView] || [];
+            const categoryCounts = currentData.reduce((acc, item) => {
+                const source = item.source || '未分类';
+                acc[source] = (acc[source] || 0) + 1;
+                return acc;
+            }, {});
+            const categories = ['总览', ...Object.keys(categoryCounts)].sort((a, b) => {
+                if (a === '总览') return -1; if (b === '总览') return 1;
+                return a.localeCompare(b, 'zh-CN');
+            });
+            dom.categoryList.innerHTML = categories.map(cat => {
+                const count = cat === '总览' ? currentData.length : categoryCounts[cat];
+                return `<li class="${cat === activeCategory ? 'active' : ''}" data-category="${cat}">
+                    <span>${cat}</span>
+                    <span class="count">${count}</span>
+                    ${cat !== '总览' ? `<span class="icon-btn category-edit-btn" title="编辑分类名" data-action="edit-category" data-category-name="${cat}"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></span>` : ''}
+                </li>`;
+            }).join('');
+        }
+        
+        function renderCards() {
+            const dataToRender = getFilteredData();
+            const isGallery = isGalleryMode && activeCategory !== '总览';
+            
+            dom.cardGrid.className = 'card-grid';
+            // [MODIFIED] The class for edit mode is now on contentArea, not the grid itself.
+            dom.cardGrid.classList.add(isGallery ? 'gallery-mode' : 'text-mode');
+            
+            if (dataToRender.length === 0) {
+                dom.cardGrid.innerHTML = `<div class="placeholder">${appData[activeView].length > 0 ? '没有找到匹配的条目。' : '请先加载数据。'}</div>`;
+                return;
+            }
+
+            dom.cardGrid.innerHTML = dataToRender.map(item => {
+                const isSelected = item.id === currentSelectedId;
+                if (isGallery) {
+                    let imagePath = '';
+                    if (item.image) imagePath = `images/${item.source}/${item.image}`;
+                    else if (item.imageUrl) imagePath = item.imageUrl;
+                    return `<div class="card gallery-card ${isSelected ? 'selected' : ''}" data-id="${item.id}">
+                            <img class="card-image" src="${imagePath}" loading="lazy" onerror="this.style.backgroundColor='#f0f0f0'; this.removeAttribute('src');">
+                            <div class="card-name">${item.name}</div>
+                        </div>`;
+                } else {
+                    return `<div class="card text-card ${isSelected ? 'selected' : ''}" data-id="${item.id}">
+                            <div class="card-name">${item.name}</div>
+                        </div>`;
+                }
+            }).join('');
+        }
+
+        function renderDetailView(item) {
+            if (!item) {
+                dom.detailContent.innerHTML = `<div class="detail-placeholder"><p>单击卡片查看详情</p></div>`;
+                return;
+            }
+
+            let imagePath = '';
+            if (item.image) { imagePath = `images/${item.source}/${item.image}`; }
+            else if (item.imageUrl) { imagePath = item.imageUrl; }
+            
+            const fullPrompt = (item.prompt_name || item.prompt_source) ? `${item.prompt_name} (${item.prompt_source})` : item.prompt;
+
+            let tagsHtml = '';
+            if (activeView === 'characters') {
+                tagsHtml = `<div class="detail-tag">${item.gender || ''}</div><div class="detail-tag">${item.age || ''}</div>`;
+                if (item.mal_id) tagsHtml += `<div class="detail-tag">MAL ID: ${item.mal_id}</div>`;
+            }
+
+            // [MODIFIED] HTML block order changed (Description first).
+            dom.detailContent.innerHTML = `
+                <img src="${imagePath}" class="detail-image" onerror="this.style.visibility='hidden'">
+                <h3 class="detail-title">${item.name}</h3>
+                <p class="detail-source">${item.source}</p>
+                <div class="detail-section"><h5>简介</h5><p>${item.description ? item.description.replace(/\n/g, '<br>') : '无'}</p></div>
+                <div class="detail-section"><h5>标签</h5><div class="detail-tags">${tagsHtml}</div></div>
+                <div class="detail-section"><h5>提示词 (Prompt)</h5><p>${fullPrompt || 'N/A'}</p></div>
+                <div class="detail-actions">
+                    <button class="btn btn-primary" data-action="copy-prompt">复制Prompt</button>
+                    <button class="btn btn-secondary" data-action="edit-item">编辑</button>
+                </div>`;
+        }
+        
+        function getFilteredData() {
+            let currentData = appData[activeView] || [];
+            if (activeCategory !== '总览') {
+                return currentData.filter(item => (item.source || '未分类') === activeCategory);
+            }
+            return currentData;
+        }
+        
+        function migrateDataItem(item) {
+            if (item.id === undefined) item.id = `id_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            if (item.mal_id === undefined) item.mal_id = null;
+            if (item.imageUrl === undefined) item.imageUrl = '';
+            if (item.description === undefined) item.description = '';
+            if (item.prompt_name === undefined) item.prompt_name = '';
+            if (item.prompt_source === undefined) item.prompt_source = '';
+            if (item.prompt === undefined) item.prompt = '';
+            if (item.gender === undefined) item.gender = '女';
+            if (item.age === undefined) item.age = '青年';
+            return item;
+        }
+
+        function migrateData(data) {
+            data.characters = (data.characters || []).map(migrateDataItem);
+            data.artists = (data.artists || []).map(migrateDataItem);
+            return data;
+        }
+        
+        // --- 5. EVENT HANDLERS & ACTIONS ---
+        function handleFileSelect(event) {
+            const file = event.target.files[0]; if (!file) return;
+            pendingFile = file;
+            dom.loadConfirmModal.overlay.classList.add('visible');
+            event.target.value = '';
+        }
+
+        function processFileLoad(mode) {
+            if (!pendingFile) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    let newData = JSON.parse(e.target.result);
+                    newData = migrateData(newData);
+                    if (mode === 'overwrite') {
+                        appData = newData;
+                        showToast('数据已覆盖加载！');
+                    } else if (mode === 'merge') {
+                        const merge = (existing, toMerge) => {
+                            const existingIds = new Set(existing.map(item => item.mal_id).filter(id => id));
+                            let addedCount = 0;
+                            toMerge.forEach(newItem => {
+                                if (newItem.mal_id && existingIds.has(newItem.mal_id)) {} else {
+                                    existing.push(newItem);
+                                    addedCount++;
+                                }
+                            });
+                            return { data: existing, added: addedCount };
+                        };
+                        const mergedChars = merge(appData.characters, newData.characters);
+                        const mergedArtists = merge(appData.artists, newData.artists);
+                        appData.characters = mergedChars.data;
+                        appData.artists = mergedArtists.data;
+                        showToast(`合并完成！新增 ${mergedChars.added} 角色, ${mergedArtists.added} 画师。`);
+                    }
+                    activeCategory = '总览';
+                    currentSelectedId = null;
+                    render();
+                } catch (error) {
+                    alert(`加载失败: ${error.message}`);
+                } finally {
+                    closeModal();
+                    pendingFile = null;
+                }
+            };
+            reader.readAsText(pendingFile);
+        }
+        
+        function handleTabClick(e) {
+            const targetView = e.target.id.split('-')[1];
+            if (targetView && targetView !== activeView) {
+                activeView = targetView;
+                activeCategory = '总览';
+                currentSelectedId = null;
+                Object.values(dom.tabs).forEach(tab => tab.classList.remove('active'));
+                e.target.classList.add('active');
+                dom.sidebarTitle.textContent = activeView === 'characters' ? '作品分类' : '画师分类';
+                render();
+            }
+        }
+        
+        function handleCategoryClick(e) {
+            const li = e.target.closest('li');
+            if (!li) return;
+            if(e.target.closest('[data-action="edit-category"]')) {
+                e.stopPropagation();
+                openCategoryEditModal(e.target.closest('[data-action="edit-category"]').dataset.categoryName);
+                return;
+            }
+            const newCategory = li.dataset.category;
+            if (newCategory === activeCategory) return;
+            const currentActive = dom.categoryList.querySelector('li.active');
+            if (currentActive) currentActive.classList.remove('active');
+            li.classList.add('active');
+            activeCategory = newCategory;
+            currentSelectedId = null;
+            renderCards();
+            renderDetailView(null);
+        }
+
+        // [REWRITTEN] Simplified click handler logic.
+        function handleCardClick(e) {
+            const card = e.target.closest('.card'); if (!card) return;
+            const id = card.dataset.id;
+            
+            if (isEditMode) { 
+                openModal('edit', id); 
+                return; 
+            }
+
+            const item = findItemById(id);
+            if (!item) return;
+
+            // If clicking the already selected card, copy prompt.
+            if (id === currentSelectedId) {
+                const fullPrompt = (item.prompt_name || item.prompt_source) ? `${item.prompt_name} (${item.prompt_source})` : item.prompt;
+                if (fullPrompt) navigator.clipboard.writeText(fullPrompt).then(() => showToast(`已复制: ${fullPrompt}`));
+                return;
+            }
+
+            // Otherwise, select the new card.
+            currentSelectedId = id;
+            const currentlySelected = dom.cardGrid.querySelector('.card.selected');
+            if (currentlySelected) currentlySelected.classList.remove('selected');
+            card.classList.add('selected');
+            renderDetailView(item);
+        }
+
+        function handleDetailViewClick(e) {
+            const action = e.target.dataset.action; if (!action || !currentSelectedId) return;
+            const item = findItemById(currentSelectedId); if (!item) return;
+            if (action === 'copy-prompt') {
+                const fullPrompt = (item.prompt_name || item.prompt_source) ? `${item.prompt_name} (${item.prompt_source})` : item.prompt;
+                if (fullPrompt) navigator.clipboard.writeText(fullPrompt).then(() => showToast(`已复制: ${fullPrompt}`));
+            } else if (action === 'edit-item') {
+                openModal('edit', item.id);
+            }
+        }
+        
+        function handleRandomSelect() {
+            const items = getFilteredData();
+            if (items.length === 0) { showToast("没有可供随机的条目"); return; }
+            const randomItem = items[Math.floor(Math.random() * items.length)];
+            currentSelectedId = randomItem.id;
+            renderCards();
+            const cardElement = dom.cardGrid.querySelector(`.card[data-id="${randomItem.id}"]`);
+            if (cardElement) cardElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            renderDetailView(randomItem);
+        }
+
+        function handleSaveData() {
+            if (appData.characters.length === 0 && appData.artists.length === 0) { showToast('没有数据可保存。'); return; }
+            const dataString = JSON.stringify(appData, null, 2);
+            const blob = new Blob([dataString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = 'manager_data.json'; a.click();
+            URL.revokeObjectURL(url); showToast('数据已保存！');
+        }
+
+        // --- MODAL & DATA MANIPULATION ---
+        function openModal(mode, id = null) {
+            const modal = dom.entryModal.overlay;
+            modal.classList.add('visible');
+            const form = modal.querySelector('form'); form.reset();
+            const deleteBtn = modal.querySelector('#modal-delete-btn');
+            deleteBtn.style.display = 'none';
+            deleteBtn.dataset.confirming = ''; deleteBtn.textContent = '删除'; deleteBtn.classList.remove('confirming');
+            const isArtistView = activeView === 'artists';
+            modal.querySelector('#character-fields').style.display = isArtistView ? 'none' : 'block';
+            if (mode === 'edit') {
+                currentSelectedId = id;
+                const item = findItemById(id); if (!item) return;
+                modal.querySelector('#modal-title').textContent = `编辑${isArtistView ? '画师' : '条目'}`;
+                modal.querySelector('#entry-id').value = item.id;
+                modal.querySelector('#entry-name').value = item.name;
+                modal.querySelector('#entry-source').value = item.source;
+                modal.querySelector('#entry-prompt-name').value = item.prompt_name || '';
+                modal.querySelector('#entry-prompt-source').value = item.prompt_source || '';
+                modal.querySelector('#entry-description').value = item.description || '';
+                modal.querySelector('#entry-image-url').value = item.imageUrl || '';
+                modal.querySelector('#entry-image').value = item.image || '';
+                if(!isArtistView) {
+                    modal.querySelector('#entry-gender').value = item.gender || '女';
+                    modal.querySelector('#entry-age').value = item.age || '青年';
+                    modal.querySelector('#entry-mal-id').value = item.mal_id || '';
+                }
+                deleteBtn.style.display = 'block';
+            } else {
+                currentSelectedId = null;
+                modal.querySelector('#modal-title').textContent = `添加新${isArtistView ? '画师' : '角色'}`;
+                modal.querySelector('#entry-id').value = `id_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            }
+        }
+
+        function closeModal() { document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('visible')); }
+
+        function handleFormSave() {
+            const modal = dom.entryModal.overlay;
+            const id = modal.querySelector('#entry-id').value;
+            let newItemData = {
+                id,
+                name: modal.querySelector('#entry-name').value.trim(),
+                source: modal.querySelector('#entry-source').value.trim(),
+                prompt_name: modal.querySelector('#entry-prompt-name').value.trim(),
+                prompt_source: modal.querySelector('#entry-prompt-source').value.trim(),
+                description: modal.querySelector('#entry-description').value.trim(),
+                imageUrl: modal.querySelector('#entry-image-url').value.trim(),
+                image: modal.querySelector('#entry-image').value.trim()
+            };
+            if(activeView === 'characters'){
+                newItemData.gender = modal.querySelector('#entry-gender').value;
+                newItemData.age = modal.querySelector('#entry-age').value;
+                newItemData.mal_id = parseInt(modal.querySelector('#entry-mal-id').value) || null;
+            }
+            if (!newItemData.name || !newItemData.source) { alert('名称和出处不能为空！'); return; }
+            const existingItem = findItemById(id);
+            if (existingItem) {
+                const index = appData[activeView].findIndex(i => i.id === id);
+                if (index > -1) appData[activeView][index] = { ...appData[activeView][index], ...newItemData };
+            } else {
+                appData[activeView].push(migrateDataItem(newItemData));
+            }
+            closeModal(); 
+            activeCategory = newItemData.source;
+            currentSelectedId = id;
+            render(); 
+            showToast('保存成功！');
+        }
+        
+        function handleDeleteClick() {
+            const btn = dom.entryModal.overlay.querySelector('#modal-delete-btn');
+            if (btn.dataset.confirming) {
+                if (currentSelectedId) {
+                    appData[activeView] = appData[activeView].filter(item => item.id !== currentSelectedId);
+                    currentSelectedId = null;
+                    closeModal(); render(); showToast('删除成功！');
+                }
+            } else {
+                btn.dataset.confirming = 'true';
+                btn.textContent = '确认删除？';
+                btn.classList.add('confirming');
+                deleteConfirmTimer = setTimeout(() => { btn.dataset.confirming = ''; btn.textContent = '删除'; btn.classList.remove('confirming'); }, 3000);
+            }
+        }
+
+        function openBatchImportModal() { /* ... */ }
+        function closeBatchImportModal() { /* ... */ }
+        function showImportStep(step) { /* ... */ }
+        function handleImportPreview() { /* ... */ }
+        function handleImportConfirm() { /* ... */ }
+        
+        // --- ADVANCED FEATURES ---
+        function openCategoryEditModal(oldSourceName) {
+            const modal = dom.categoryEditModal.overlay;
+            const form = modal.querySelector('#category-edit-form');
+            form.reset();
+            const firstItem = appData[activeView].find(item => item.source === oldSourceName);
+            const oldPromptSource = firstItem ? firstItem.prompt_source : '';
+            
+            modal.querySelector('#category-edit-source').value = oldSourceName;
+            modal.querySelector('#category-edit-prompt-source').value = oldPromptSource;
+
+            modal.querySelector('#category-edit-save-btn').onclick = () => {
+                const newSourceName = modal.querySelector('#category-edit-source').value.trim();
+                const newPromptSourceName = modal.querySelector('#category-edit-prompt-source').value.trim();
+                if (!newSourceName || !newPromptSourceName) {
+                    alert("名称不能为空！");
+                    return;
+                }
+                handleCategoryEdit(oldSourceName, newSourceName, newPromptSourceName);
+                closeModal();
+            };
+            modal.classList.add('visible');
+        }
+
+        function handleCategoryEdit(oldName, newSourceName, newPromptSourceName) {
+            let changedCount = 0;
+            appData[activeView].forEach(item => {
+                if (item.source === oldName) {
+                    item.source = newSourceName;
+                    item.prompt_source = newPromptSourceName;
+                    changedCount++;
+                }
+            });
+            
+            if (changedCount > 0) {
+                activeCategory = newSourceName;
+                render();
+                showToast(`分类已重命名，影响了 ${changedCount} 个条目。`);
+            }
+        }
+        
+        function upgradePromptStructure() {
+            if (!confirm("此操作将尝试把旧的单一Prompt字段分离为“名称”和“作品”两部分，并会覆盖已有的新字段。此操作不可逆，建议先备份数据。确定要继续吗？")) return;
+            let upgradedCount = 0;
+            appData[activeView].forEach(item => {
+                if (item.prompt && (!item.prompt_name || !item.prompt_source)) {
+                    const match = item.prompt.match(/^(.*?)\s*\((.*?)\)$/);
+                    if (match) {
+                        item.prompt_name = match[1].trim();
+                        item.prompt_source = match[2].trim();
+                        item.prompt = ''; // Clear legacy field
+                        upgradedCount++;
+                    }
+                }
+            });
+            render();
+            showToast(`Prompt结构升级完成！共处理了 ${upgradedCount} 个条目。请检查数据并保存。`);
+        }
+        
+        function openCategoryIndexModal() {
+            const modal = dom.categoryIndexModal.overlay;
+            
+            const pinyinBoundaries = {
+                'A': '啊', 'B': '芭', 'C': '擦', 'D': '搭', 'E': '妸', 'F': '发', 'G': '旮',
+                'H': '哈', 'J': '击', 'K': '咖', 'L': '垃', 'M': '妈', 'N': '那', 'O': '噢',
+                'P': '葩', 'Q': '妻', 'R': '然', 'S': '仨', 'T': '他', 'W': '蛙', 'X': '夕',
+                'Y': '压', 'Z': '匝'
+            };
+            const alphabetOrder = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split('');
+            const boundaryOrder = "ZYXWVUTSRQPONMLKJHGFEDCBA".split('');
+
+            const getGroupKey = (source) => {
+                if (!source || source.length === 0) return '#';
+                const firstChar = source.charAt(0);
+                if (/[a-zA-Z]/.test(firstChar)) {
+                    return firstChar.toUpperCase();
+                }
+                for (const char of boundaryOrder) {
+                    if (pinyinBoundaries[char] && source.localeCompare(pinyinBoundaries[char], 'zh-CN') >= 0) {
+                        return char;
+                    }
+                }
+                return '#';
+            };
+
+            const uniqueSources = [...new Set(appData[activeView].map(item => item.source || '未分类'))];
+            const groupedCategories = {};
+
+            uniqueSources.forEach(source => {
+                const key = getGroupKey(source);
+                if (!groupedCategories[key]) {
+                    groupedCategories[key] = [];
+                }
+                groupedCategories[key].push(source);
+            });
+
+            const groupOrder = ['#', ...alphabetOrder];
+            let listHtml = '';
+            
+            const isEnglish = (str) => /^[a-zA-Z]/.test(str);
+
+            groupOrder.forEach(groupKey => {
+                const items = groupedCategories[groupKey];
+                if (items && items.length > 0) {
+                    items.sort((a, b) => {
+                        const aIsEnglish = isEnglish(a);
+                        const bIsEnglish = isEnglish(b);
+                        if (aIsEnglish && !bIsEnglish) return 1;
+                        if (!aIsEnglish && bIsEnglish) return -1;
+                        return a.localeCompare(b, 'zh-CN');
+                    });
+
+                    listHtml += `<h4 class="index-list-group-title" id="index-${groupKey}">${groupKey}</h4>`;
+                    items.forEach(source => {
+                        listHtml += `<li data-category-name="${source}">${source}</li>`;
+                    });
+                }
+            });
+
+            const listEl = modal.querySelector('#index-list');
+            listEl.innerHTML = listHtml || '<div class="placeholder">没有分类</div>';
+
+            const navEl = modal.querySelector('#alphabet-nav');
+            navEl.innerHTML = groupOrder.map(char => `<a data-anchor="#index-${char}">${char}</a>`).join('');
+            
+            navEl.onclick = (e) => {
+                e.preventDefault();
+                const anchor = e.target.dataset.anchor;
+                if (anchor) modal.querySelector(anchor)?.scrollIntoView({ behavior: 'smooth' });
+            };
+            
+            listEl.onclick = (e) => {
+                if (e.target.tagName === 'LI') {
+                    const categoryName = e.target.dataset.categoryName;
+                    const liInSidebar = dom.categoryList.querySelector(`li[data-category="${categoryName}"]`);
+                    if (liInSidebar) {
+                       liInSidebar.click();
+                       liInSidebar.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                    closeModal();
+                }
+            };
+            
+            const searchInput = modal.querySelector('#index-search-input');
+            searchInput.value = '';
+            searchInput.oninput = () => {
+                const searchTerm = searchInput.value.toLowerCase();
+                listEl.querySelectorAll('li').forEach(li => {
+                    li.style.display = li.textContent.toLowerCase().includes(searchTerm) ? '' : 'none';
+                });
+                listEl.querySelectorAll('h4').forEach(h4 => {
+                    let nextEl = h4.nextElementSibling;
+                    let hasVisibleLi = false;
+                    while(nextEl && nextEl.tagName !== 'H4'){
+                        if(nextEl.style.display !== 'none'){ hasVisibleLi = true; break; }
+                        nextEl = nextEl.nextElementSibling;
+                    }
+                    h4.style.display = hasVisibleLi ? '' : 'none';
+                });
+            };
+            modal.classList.add('visible');
+        }
+
+        // --- UTILITIES ---
+        function showToast(message, type = 'success') {
+            clearTimeout(toastTimer);
+            const toast = dom.toast;
+            toast.textContent = message;
+            toast.style.backgroundColor = type === 'success' ? 'var(--success-color)' : 'var(--danger-color)';
+            toast.classList.add('show');
+            toastTimer = setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        // --- INITIALIZATION ---
+        initializeApp();
+    });
+    </script>
+</body>
+</html>
