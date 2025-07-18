@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>角色画师管理器 V3.2</title>
+    <title>角色画师管理器 V3.3</title>
     <style>
         :root {
             --primary-color: #007bff; --success-color: #28a745; --danger-color: #dc3545;
@@ -37,6 +37,10 @@
         .header-actions button:disabled { background-color: var(--secondary-color); border-color: var(--secondary-color); cursor: not-allowed; opacity: 0.65; }
         .header-actions button.save-btn { background-color: var(--success-color); border-color: var(--success-color); }
         .header-actions button.save-btn:hover:not(:disabled) { background-color: #218838; }
+        #filter-toggle-btn { background-color: transparent; border-color: var(--secondary-color); color: var(--secondary-color); }
+        #filter-toggle-btn:hover { background-color: var(--secondary-color); color: #fff; }
+        #filter-toggle-btn .arrow { transition: transform 0.2s; display: inline-block; }
+        #filter-toggle-btn.expanded .arrow { transform: rotate(180deg); }
         .header-actions .dropdown { position: relative; }
         .header-actions .dropdown-content { display: none; position: absolute; right: 0; top: 100%; background-color: white; min-width: 160px; box-shadow: 0 8px 16px 0 rgba(0,0,0,0.2); z-index: 1; border-radius: 5px; overflow: hidden; border: 1px solid var(--border-color); }
         .header-actions .dropdown-content button { width: 100%; background-color: white; color: black; border: none; text-align: left; border-radius: 0; border-bottom: 1px solid var(--border-color); }
@@ -97,6 +101,16 @@
         .content-area.edit-mode-active {
             background-color: var(--edit-mode-bg);
         }
+        .filter-bar {
+            display: flex; gap: 1rem; flex-shrink: 0; align-items: center; overflow: hidden;
+            max-height: 0; padding-bottom: 0; margin-bottom: 0; opacity: 0;
+            transition: all 0.4s ease-out;
+        }
+        .filter-bar.expanded { max-height: 100px; opacity: 1; padding-bottom: 1.5rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color);}
+        .filter-bar .search-box { flex-grow: 1; }
+        .filter-bar .filter-selects { display: flex; gap: 1rem; flex-basis: 40%; }
+        .filter-bar input, .filter-bar select { width: 100%; padding: 0.6rem; border: 1px solid var(--border-color); border-radius: 5px; font-size: 0.95rem; }
+
         .card-grid-container { flex-grow: 1; overflow-y: auto; padding-right: 5px; }
         .card-grid { display: grid; gap: 1rem; }
         .card-grid.text-mode { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
@@ -161,7 +175,7 @@
         .modal-actions .btn-danger { background-color: var(--danger-color); color: #fff; }
         .modal-actions .btn-danger.confirming { background-color: #a71d2a; }
         .modal-actions .action-group-right { display: flex; gap: 1rem; }
-        .modal-actions button, .load-confirm-modal .modal-actions button { padding: 0.6rem 1.2rem; font-size: 1rem; border-radius: 5px; border: none; cursor: pointer; }
+        .modal-actions button, .load-confirm-modal .modal-actions button, #about-modal .modal-actions button { padding: 0.6rem 1.2rem; font-size: 1rem; border-radius: 5px; border: none; cursor: pointer; }
         .modal-actions .btn-secondary { background-color: #e9ecef; color: var(--dark-gray); }
         .modal-actions .btn-secondary:hover { background-color: #dbe1e6; }
         .modal-actions .btn-primary { background-color: var(--primary-color); color: #fff; }
@@ -170,6 +184,18 @@
         .load-confirm-modal .modal-actions { justify-content: center; }
         #batch-import-modal .modal-content { max-width: 700px; }
         #batch-import-modal textarea { min-height: 30vh; font-family: monospace; }
+        #import-preview-container { border: 1px solid var(--border-color); margin-top: 1rem; padding: 1rem; max-height: 40vh; overflow-y: auto; background-color: var(--light-gray); font-size: 0.9rem; }
+        .preview-item { padding: 0.5rem; border-bottom: 1px dashed var(--border-color); }
+        .preview-item:last-child { border-bottom: none; }
+        .preview-item.status-new { color: var(--success-color); }
+        .preview-item.status-skip { color: var(--secondary-color); text-decoration: line-through; }
+        .preview-item.status-error { color: var(--danger-color); font-weight: bold; }
+        #import-summary { margin-top: 1rem; font-weight: bold; }
+        #about-modal .modal-content { max-width: 700px; }
+        #about-modal .modal-actions { justify-content: flex-end; }
+        #about-modal .modal-body h4 { margin-top: 1.5em; margin-bottom: 0.5em; border-bottom: 1px solid var(--border-color); padding-bottom: 0.25em;}
+        #about-modal .modal-body ul { padding-left: 20px; }
+        #about-modal .modal-body p, #about-modal .modal-body li { color: #495057; }
 
         /* --- Category Index Modal --- */
         #category-index-modal .modal-content { max-width: 800px; }
@@ -192,7 +218,7 @@
 <body>
     <header class="app-header">
         <div class="header-left">
-            <h1>管理器 V3.2</h1>
+            <h1>管理器 V3.3</h1>
             <nav class="tab-navigation">
                 <button id="tab-characters" class="active">角色</button>
                 <button id="tab-artists">画师</button>
@@ -213,11 +239,13 @@
                     <button id="upgrade-prompt-btn">升级Prompt结构</button>
                 </div>
             </div>
+            <button id="filter-toggle-btn">筛选 <span class="arrow">▼</span></button>
             <button id="load-json-btn">加载</button>
             <input type="file" id="file-input" accept=".json" style="display: none;">
             <button id="batch-import-btn">批量导入</button>
             <button id="add-item-btn">添加</button>
             <button id="random-select-btn">🎲</button>
+            <button id="about-btn">关于</button>
             <button id="save-json-btn" class="save-btn">保存</button>
         </div>
     </header>
@@ -234,6 +262,19 @@
         </aside>
 
         <div class="content-area" id="content-area">
+            <div class="filter-bar" id="filter-bar">
+                <div class="search-box">
+                    <input type="search" id="search-input" placeholder="全局搜索名称、出处、简介...">
+                </div>
+                <div class="filter-selects">
+                    <select id="gender-filter">
+                        <option value="">所有性别</option><option value="男">男</option><option value="女">女</option><option value="扶她">扶她</option><option value="未知">未知</option>
+                    </select>
+                    <select id="age-filter">
+                        <option value="">所有年龄</option><option value="幼年">幼年</option><option value="少年">少年</option><option value="青年">青年</option><option value="成年">成年</option>
+                    </select>
+                </div>
+            </div>
             <div class="card-grid-container">
                 <div class="card-grid" id="card-grid"></div>
             </div>
@@ -252,6 +293,7 @@
     <div class="modal-overlay" id="load-confirm-modal"></div>
     <div class="modal-overlay" id="category-index-modal"></div>
     <div class="modal-overlay" id="category-edit-modal"></div>
+    <div class="modal-overlay" id="about-modal"></div>
 
     <div id="toast" class="toast-notification"></div>
     
@@ -262,28 +304,36 @@
         let activeView = 'characters';
         let activeCategory = '总览';
         let isEditMode = false;
-        let isGalleryMode = true; // [MODIFIED] Default to true
+        let isGalleryMode = true;
         let currentSelectedId = null;
         let pendingFile = null;
         let toastTimer = null;
         let deleteConfirmTimer = null;
+        let searchDebounceTimer = null;
+        let importPreviewData = [];
 
         // --- 2. DOM ELEMENTS MAPPING ---
         const dom = {
             editModeToggle: document.getElementById('edit-mode-toggle'),
             galleryModeToggle: document.getElementById('gallery-mode-toggle'),
             upgradePromptBtn: document.getElementById('upgrade-prompt-btn'),
+            filterToggleBtn: document.getElementById('filter-toggle-btn'),
             loadBtn: document.getElementById('load-json-btn'),
             fileInput: document.getElementById('file-input'),
             saveBtn: document.getElementById('save-json-btn'),
             addBtn: document.getElementById('add-item-btn'),
             batchImportBtn: document.getElementById('batch-import-btn'),
             randomSelectBtn: document.getElementById('random-select-btn'),
+            aboutBtn: document.getElementById('about-btn'),
             tabs: { characters: document.getElementById('tab-characters'), artists: document.getElementById('tab-artists') },
             sidebarTitle: document.getElementById('sidebar-title'),
             categoryIndexBtn: document.getElementById('category-index-btn'),
             categoryList: document.getElementById('category-list'),
-            contentArea: document.getElementById('content-area'), // [ADDED]
+            contentArea: document.getElementById('content-area'),
+            filterBar: document.getElementById('filter-bar'),
+            searchInput: document.getElementById('search-input'),
+            genderFilter: document.getElementById('gender-filter'),
+            ageFilter: document.getElementById('age-filter'),
             cardGrid: document.getElementById('card-grid'),
             detailSidebar: document.getElementById('detail-sidebar'),
             detailContent: document.getElementById('detail-content'),
@@ -292,7 +342,8 @@
             batchModal: { overlay: document.getElementById('batch-import-modal') },
             loadConfirmModal: { overlay: document.getElementById('load-confirm-modal') },
             categoryIndexModal: { overlay: document.getElementById('category-index-modal') },
-            categoryEditModal: { overlay: document.getElementById('category-edit-modal') }
+            categoryEditModal: { overlay: document.getElementById('category-edit-modal') },
+            aboutModal: { overlay: document.getElementById('about-modal') }
         };
 
         // --- 3. INITIALIZE & TEMPLATES ---
@@ -303,33 +354,37 @@
         }
 
         function setupModalHTML() {
-            dom.entryModal.overlay.innerHTML = `<div class="modal-content"><h3 id="modal-title"></h3><div class="modal-body"><form id="entry-form"><input type="hidden" id="entry-id"><div class="form-group"><label for="entry-name">名称 (中文)</label><input type="text" id="entry-name" required></div><div class="form-group"><label for="entry-source">出处 (中文)</label><input type="text" id="entry-source" required></div><div class="form-group"><label for="entry-prompt-name">Prompt Name (英文名)</label><input type="text" id="entry-prompt-name"></div><div class="form-group"><label for="entry-prompt-source">Prompt Source (英文作品系列名)</label><input type="text" id="entry-prompt-source"></div><div id="character-fields"><div style="display: flex; gap: 1rem;"><div class="form-group" style="flex: 1;"><label for="entry-gender">性别</label><select id="entry-gender"><option value="女">女</option><option value="男">男</option><option value="扶她">扶她</option></select></div><div class="form-group" style="flex: 1;"><label for="entry-age">年龄段</label><select id="entry-age"><option value="青年">青年</option><option value="少年">少年</option><option value="幼年">幼年</option><option value="成年">成年</option></select></div><div class="form-group" style="flex: 1;"><label for="entry-mal-id">MAL ID</label><input type="number" id="entry-mal-id" placeholder="可选"></div></div></div><div class="form-group"><label for="entry-description">简介</label><textarea id="entry-description" placeholder="角色/画师简介..."></textarea></div><div class="form-group"><label for="entry-image-url">在线图片URL</label><input type="text" id="entry-image-url" placeholder="例如: https://cdn.myanimelist.net/..."></div><div class="form-group"><label for="entry-image">本地图片文件名</label><input type="text" id="entry-image" placeholder="例如: ying.png (优先于在线URL)"></div></form></div><div class="modal-actions"><button type="button" class="btn-danger" id="modal-delete-btn" style="display: none;">删除</button><div class="action-group-right"><button type="button" class="btn-secondary" data-action="close-modal">取消</button><button type="button" class="btn-primary" id="modal-save-btn">保存</button></div></div></div>`;
-            dom.batchModal.overlay.innerHTML = `<div class="modal-content"><h3 id="batch-import-title">批量导入</h3><div class="modal-body"><div class="form-group"><label for="batch-import-text">粘贴来自“采集器”的文本</label><textarea id="batch-import-text" rows="10" placeholder="[START_ITEM]..."></textarea><small>支持V1.6+采集器生成的字段标记格式。</small></div><div id="import-preview-container" style="display:none;"></div><div id="import-summary" style="display:none;"></div></div><div class="modal-actions"><div id="batch-import-actions-initial"><button type="button" class="btn-secondary" data-action="close-modal">取消</button><button type="button" class="btn-primary" id="batch-import-preview-btn">预览</button></div><div id="batch-import-actions-preview" style="display:none;"><button type="button" class="btn-secondary" id="batch-import-back-btn">返回</button><button type="button" class="btn-primary" id="batch-import-confirm-btn">确认</button></div></div></div>`;
+            dom.entryModal.overlay.innerHTML = `<div class="modal-content"><h3 id="modal-title"></h3><div class="modal-body"><form id="entry-form"><input type="hidden" id="entry-id"><div class="form-group"><label for="entry-name">名称 (中文)</label><input type="text" id="entry-name" required></div><div class="form-group"><label for="entry-source">出处 (中文)</label><input type="text" id="entry-source" required></div><div class="form-group"><label for="entry-prompt-name">Prompt Name (英文名)</label><input type="text" id="entry-prompt-name"></div><div class="form-group"><label for="entry-prompt-source">Prompt Source (英文作品系列名)</label><input type="text" id="entry-prompt-source"></div><div id="character-fields"><div style="display: flex; gap: 1rem;"><div class="form-group" style="flex: 1;"><label for="entry-gender">性别</label><select id="entry-gender"><option value="女">女</option><option value="男">男</option><option value="扶她">扶她</option><option value="未知">未知</option></select></div><div class="form-group" style="flex: 1;"><label for="entry-age">年龄段</label><select id="entry-age"><option value="青年">青年</option><option value="少年">少年</option><option value="幼年">幼年</option><option value="成年">成年</option></select></div><div class="form-group" style="flex: 1;"><label for="entry-mal-id">MAL ID</label><input type="number" id="entry-mal-id" placeholder="可选"></div></div></div><div class="form-group"><label for="entry-description">简介</label><textarea id="entry-description" placeholder="角色/画师简介..."></textarea></div><div class="form-group"><label for="entry-image-url">在线图片URL</label><input type="text" id="entry-image-url" placeholder="例如: https://cdn.myanimelist.net/..."></div><div class="form-group"><label for="entry-image">本地图片文件名</label><input type="text" id="entry-image" placeholder="例如: ying.png (优先于在线URL)"></div></form></div><div class="modal-actions"><button type="button" class="btn-danger" id="modal-delete-btn" style="display: none;">删除</button><div class="action-group-right"><button type="button" class="btn-secondary" data-action="close-modal">取消</button><button type="button" class="btn-primary" id="modal-save-btn">保存</button></div></div></div>`;
+            dom.batchModal.overlay.innerHTML = `<div class="modal-content"><h3 id="batch-import-title">批量导入</h3><div class="modal-body"><div class="form-group"><label for="batch-import-text">粘贴来自“采集器”的文本</label><textarea id="batch-import-text" rows="10" placeholder="[START_ITEM]..."></textarea><small>支持V1.8+采集器生成的字段标记格式。</small></div><div id="import-preview-container" style="display:none;"></div><div id="import-summary" style="display:none;"></div></div><div class="modal-actions"><div id="batch-import-actions-initial" style="display:flex; justify-content:flex-end;"><button type="button" class="btn-secondary" data-action="close-modal">取消</button><button type="button" class="btn-primary" id="batch-import-preview-btn">预览导入</button></div><div id="batch-import-actions-preview" style="display:none;"><button type="button" class="btn-secondary" id="batch-import-back-btn">返回编辑</button><button type="button" class="btn-primary" id="batch-import-confirm-btn">确认导入</button></div></div></div>`;
             dom.loadConfirmModal.overlay.innerHTML = `<div class="modal-content"><h3>选择加载方式</h3><p>如何处理新加载的数据？</p><div class="modal-actions" style="justify-content: center;"><button type="button" class="btn-primary" id="load-action-merge">合并</button><button type="button" class="btn-danger" id="load-action-overwrite">覆盖</button><button type="button" class="btn-secondary" data-action="close-modal">取消</button></div></div>`;
             dom.categoryIndexModal.overlay.innerHTML = `<div class="modal-content"><div class="index-header"><div class="alphabet-nav" id="alphabet-nav"></div><div class="index-search-box"><input type="search" id="index-search-input" placeholder="实时搜索分类..."></div></div><div class="modal-body"><ul id="index-list" class="index-list"></ul></div></div>`;
             dom.categoryEditModal.overlay.innerHTML = `<div class="modal-content"><h3 id="category-edit-title">编辑分类名称</h3><div class="modal-body"><form id="category-edit-form"><div class="form-group"><label for="category-edit-source">出处 (中文)</label><input type="text" id="category-edit-source" required></div><div class="form-group"><label for="category-edit-prompt-source">Prompt Source (英文作品系列名)</label><input type="text" id="category-edit-prompt-source" required></div></form></div><div class="modal-actions"><div class="action-group-right"><button type="button" class="btn-secondary" data-action="close-modal">取消</button><button type="button" class="btn-primary" id="category-edit-save-btn">保存</button></div></div></div>`;
+            dom.aboutModal.overlay.innerHTML = `<div class="modal-content"><h3>关于 角色画师管理器 V3.3</h3><div class="modal-body"><h4>关于开发</h4><p>项目中所有的代码实现、逻辑优化和问题修复工作，均由 Google AI Studio 中的 <strong>Gemini Pro</strong> 模型完成。我本人并不会编程相关的技能。</p><p>制作目的是为了方便使用AI绘画。我用的NovelAI包含大量二次元角色，但是很难从如此多的角色中挑选自己想要的。再加上角色名查找十分麻烦，每次需要找一会才能找到角色，所以就想做一个可以浏览角色并且点击就能复制包含作品名的角色提示词。</p><p>项目主页: <a href="https://github.com/970224023/anime-character-manager" target="_blank">https://github.com/970224023/anime-character-manager</a></p><h4>主要功能</h4><ul><li><strong>分类管理</strong>: 支持对角色和画师两大类别进行数据管理。</li><li><strong>图文双视图</strong>: 可在文字列表和图片画廊模式之间自由切换。</li><li><strong>便捷的Prompt复制</strong>: 再次单击已选中的卡片，即可快速复制其AI绘画提示词。</li><li><strong>强大的分类索引</strong>: 提供A-Z索引弹窗，支持中英文混合排序。</li><li><strong>安全编辑模式</strong>: 开启后界面背景会变色以作提示。</li><li><strong>灵活的数据操作</strong>: 支持加载、保存、批量导入、添加、编辑和删除条目。</li></ul><h4>如何使用</h4><ol><li><strong>加载数据</strong>: 首次使用，需要一个 <code>manager_data.json</code> 文件。点击右上角的【加载】按钮进行选择。</li><li><strong>浏览与操作</strong>: 在左侧选择分类，在中栏浏览卡片。单击卡片查看详情，再次单击复制提示词。</li><li><strong>保存数据</strong>: 所有更改完成后，请务必点击右上角的【保存】按钮，下载新的数据文件。</li></ol><h4>致谢</h4><p>数据来源于 <a href="https://myanimelist.net/" target="_blank">MyAnimeList (MAL)</a>，通过优秀的社区项目 <a href="https://jikan.moe/" target="_blank">Jikan API</a> 获取。请尊重并合理使用以上服务。</p></div><div class="modal-actions"><button type="button" class="btn-primary" data-action="close-modal">关闭</button></div></div>`;
         }
 
         function addEventListeners() {
-            // [MODIFIED] Edit mode now also toggles class on content area
             dom.editModeToggle.addEventListener('change', (e) => { 
                 isEditMode = e.target.checked; 
                 dom.contentArea.classList.toggle('edit-mode-active', isEditMode);
             });
             dom.galleryModeToggle.addEventListener('change', (e) => { isGalleryMode = e.target.checked; renderCards(); });
             dom.upgradePromptBtn.addEventListener('click', upgradePromptStructure);
+            dom.filterToggleBtn.addEventListener('click', () => dom.filterBar.classList.toggle('expanded'));
             dom.loadBtn.addEventListener('click', () => dom.fileInput.click());
             dom.fileInput.addEventListener('change', handleFileSelect);
             dom.saveBtn.addEventListener('click', handleSaveData);
             dom.addBtn.addEventListener('click', () => openModal('add'));
             dom.batchImportBtn.addEventListener('click', openBatchImportModal);
             dom.randomSelectBtn.addEventListener('click', handleRandomSelect);
+            dom.aboutBtn.addEventListener('click', () => dom.aboutModal.overlay.classList.add('visible'));
             Object.values(dom.tabs).forEach(tab => tab.addEventListener('click', handleTabClick));
             dom.categoryList.addEventListener('click', handleCategoryClick);
             dom.cardGrid.addEventListener('click', handleCardClick);
-            // [REMOVED] dblclick listener is no longer needed
             dom.detailContent.addEventListener('click', handleDetailViewClick);
             dom.categoryIndexBtn.addEventListener('click', openCategoryIndexModal);
+            dom.searchInput.addEventListener('input', () => debounceRender(300));
+            dom.genderFilter.addEventListener('change', renderCards);
+            dom.ageFilter.addEventListener('change', renderCards);
             
             document.addEventListener('click', (e) => {
                 const target = e.target;
@@ -351,6 +406,11 @@
             renderCategories();
             renderCards();
             renderDetailView(findItemById(currentSelectedId));
+        }
+
+        function debounceRender(delay) {
+            clearTimeout(searchDebounceTimer);
+            searchDebounceTimer = setTimeout(renderCards, delay);
         }
         
         function findItemById(id) {
@@ -384,7 +444,6 @@
             const isGallery = isGalleryMode && activeCategory !== '总览';
             
             dom.cardGrid.className = 'card-grid';
-            // [MODIFIED] The class for edit mode is now on contentArea, not the grid itself.
             dom.cardGrid.classList.add(isGallery ? 'gallery-mode' : 'text-mode');
             
             if (dataToRender.length === 0) {
@@ -394,7 +453,7 @@
 
             dom.cardGrid.innerHTML = dataToRender.map(item => {
                 const isSelected = item.id === currentSelectedId;
-                if (isGallery) {
+                if (isGallery && (item.image || item.imageUrl)) {
                     let imagePath = '';
                     if (item.image) imagePath = `images/${item.source}/${item.image}`;
                     else if (item.imageUrl) imagePath = item.imageUrl;
@@ -428,7 +487,6 @@
                 if (item.mal_id) tagsHtml += `<div class="detail-tag">MAL ID: ${item.mal_id}</div>`;
             }
 
-            // [MODIFIED] HTML block order changed (Description first).
             dom.detailContent.innerHTML = `
                 <img src="${imagePath}" class="detail-image" onerror="this.style.visibility='hidden'">
                 <h3 class="detail-title">${item.name}</h3>
@@ -445,7 +503,24 @@
         function getFilteredData() {
             let currentData = appData[activeView] || [];
             if (activeCategory !== '总览') {
-                return currentData.filter(item => (item.source || '未分类') === activeCategory);
+                currentData = currentData.filter(item => (item.source || '未分类') === activeCategory);
+            }
+
+            const searchTerm = dom.searchInput.value.toLowerCase().trim();
+            if (searchTerm) {
+                currentData = currentData.filter(item => 
+                    item.name?.toLowerCase().includes(searchTerm) ||
+                    item.source?.toLowerCase().includes(searchTerm) ||
+                    item.description?.toLowerCase().includes(searchTerm) ||
+                    item.prompt_name?.toLowerCase().includes(searchTerm) ||
+                    item.prompt_source?.toLowerCase().includes(searchTerm)
+                );
+            }
+            if(activeView === 'characters') {
+                const gender = dom.genderFilter.value;
+                if (gender) currentData = currentData.filter(item => item.gender === gender);
+                const age = dom.ageFilter.value;
+                if (age) currentData = currentData.filter(item => item.age === age);
             }
             return currentData;
         }
@@ -458,18 +533,20 @@
             if (item.prompt_name === undefined) item.prompt_name = '';
             if (item.prompt_source === undefined) item.prompt_source = '';
             if (item.prompt === undefined) item.prompt = '';
-            if (item.gender === undefined) item.gender = '女';
-            if (item.age === undefined) item.age = '青年';
+            if (activeView === 'characters') {
+                if (item.gender === undefined) item.gender = '女';
+                if (item.age === undefined) item.age = '青年';
+            }
             return item;
         }
 
         function migrateData(data) {
-            data.characters = (data.characters || []).map(migrateDataItem);
-            data.artists = (data.artists || []).map(migrateDataItem);
+            data.characters = (data.characters || []).map(item => migrateDataItem(item));
+            data.artists = (data.artists || []).map(item => migrateDataItem(item));
             return data;
         }
         
-        // --- 5. EVENT HANDLERS & ACTIONS ---
+        // --- 5. EVENT HANDLERS ---
         function handleFileSelect(event) {
             const file = event.target.files[0]; if (!file) return;
             pendingFile = file;
@@ -522,11 +599,13 @@
             const targetView = e.target.id.split('-')[1];
             if (targetView && targetView !== activeView) {
                 activeView = targetView;
-                activeCategory = '总览';
-                currentSelectedId = null;
                 Object.values(dom.tabs).forEach(tab => tab.classList.remove('active'));
                 e.target.classList.add('active');
                 dom.sidebarTitle.textContent = activeView === 'characters' ? '作品分类' : '画师分类';
+                const isCharView = activeView === 'characters';
+                dom.genderFilter.style.display = isCharView ? '' : 'none';
+                dom.ageFilter.style.display = isCharView ? '' : 'none';
+                activeCategory = '总览';
                 render();
             }
         }
@@ -550,7 +629,6 @@
             renderDetailView(null);
         }
 
-        // [REWRITTEN] Simplified click handler logic.
         function handleCardClick(e) {
             const card = e.target.closest('.card'); if (!card) return;
             const id = card.dataset.id;
@@ -563,14 +641,12 @@
             const item = findItemById(id);
             if (!item) return;
 
-            // If clicking the already selected card, copy prompt.
             if (id === currentSelectedId) {
                 const fullPrompt = (item.prompt_name || item.prompt_source) ? `${item.prompt_name} (${item.prompt_source})` : item.prompt;
                 if (fullPrompt) navigator.clipboard.writeText(fullPrompt).then(() => showToast(`已复制: ${fullPrompt}`));
                 return;
             }
 
-            // Otherwise, select the new card.
             currentSelectedId = id;
             const currentlySelected = dom.cardGrid.querySelector('.card.selected');
             if (currentlySelected) currentlySelected.classList.remove('selected');
@@ -696,11 +772,96 @@
             }
         }
 
-        function openBatchImportModal() { /* ... */ }
-        function closeBatchImportModal() { /* ... */ }
-        function showImportStep(step) { /* ... */ }
-        function handleImportPreview() { /* ... */ }
-        function handleImportConfirm() { /* ... */ }
+        function openBatchImportModal() {
+            const modal = dom.batchModal.overlay;
+            modal.querySelector('#batch-import-title').textContent = `批量导入到 "${activeView === 'artists' ? '画师' : '角色'}"`;
+            modal.querySelector('#batch-import-text').value = '';
+            showImportStep('initial'); 
+            modal.classList.add('visible');
+        }
+
+        function showImportStep(step) {
+            const modal = dom.batchModal.overlay;
+            modal.querySelector('#batch-import-actions-initial').style.display = (step === 'initial') ? 'flex' : 'none';
+            modal.querySelector('#batch-import-actions-preview').style.display = (step === 'preview') ? 'flex' : 'none';
+            modal.querySelector('#import-preview-container').style.display = (step === 'preview') ? 'block' : 'none';
+            modal.querySelector('#import-summary').style.display = (step === 'preview') ? 'block' : 'none';
+        }
+
+        function handleImportPreview() {
+            const modal = dom.batchModal.overlay;
+            const text = modal.querySelector('#batch-import-text').value.trim();
+            if (!text) { alert('请粘贴需要导入的数据。'); return; }
+
+            importPreviewData = [];
+            const items = text.split('[START_ITEM]').filter(s => s.trim());
+            const existingIds = new Set(appData[activeView].map(item => item.mal_id).filter(id => id));
+            let newCount = 0, skipCount = 0, errorCount = 0;
+            const previewContainer = modal.querySelector('#import-preview-container');
+            previewContainer.innerHTML = '';
+
+            for (const itemText of items) {
+                const newItem = {};
+                const lines = itemText.trim().split('\n');
+                let descriptionMode = false;
+                let descriptionLines = [];
+
+                for (const line of lines) {
+                    if (line.trim() === '[END_ITEM]') {
+                        descriptionMode = false;
+                        newItem.description = descriptionLines.join('\n').trim();
+                        break;
+                    }
+                    if (descriptionMode) {
+                        descriptionLines.push(line);
+                    } else {
+                        const parts = line.split('::');
+                        const key = parts[0].trim();
+                        const value = parts.slice(1).join('::').trim();
+                        if (key === 'description') {
+                            descriptionMode = true;
+                            if(value) descriptionLines.push(value);
+                        } else if (key) {
+                            newItem[key] = value;
+                        }
+                    }
+                }
+                if(descriptionMode) newItem.description = descriptionLines.join('\n').trim();
+
+
+                if (!newItem.name || !newItem.source) {
+                    errorCount++;
+                    previewContainer.innerHTML += `<div class="preview-item status-error">格式错误 (缺少name或source): ${itemText.substring(0, 50)}...</div>`;
+                    continue;
+                }
+                newItem.mal_id = parseInt(newItem.mal_id) || null;
+                const fullPrompt = `${newItem.prompt_name} (${newItem.prompt_source})`;
+                newItem.prompt = fullPrompt;
+
+                if (newItem.mal_id && existingIds.has(newItem.mal_id)) {
+                    skipCount++;
+                    previewContainer.innerHTML += `<div class="preview-item status-skip">跳过 (MAL ID已存在): ${newItem.name}</div>`;
+                    importPreviewData.push({ status: 'skip', data: newItem });
+                } else {
+                    newCount++;
+                    previewContainer.innerHTML += `<div class="preview-item status-new">新增: ${newItem.name} (${newItem.source})</div>`;
+                    importPreviewData.push({ status: 'new', data: newItem });
+                }
+            }
+            modal.querySelector('#import-summary').textContent = `预览结果: 新增 ${newCount} 项, 跳过 ${skipCount} 项, 错误 ${errorCount} 项。`;
+            modal.querySelector('#batch-import-confirm-btn').disabled = newCount === 0;
+            showImportStep('preview');
+        }
+        
+        function handleImportConfirm() {
+            const newItems = importPreviewData.filter(p => p.status === 'new').map(p => migrateDataItem(p.data));
+            if (newItems.length > 0) {
+                appData[activeView].push(...newItems);
+                render();
+                showToast(`成功导入 ${newItems.length} 个新条目！`);
+            }
+            closeModal();
+        }
         
         // --- ADVANCED FEATURES ---
         function openCategoryEditModal(oldSourceName) {
