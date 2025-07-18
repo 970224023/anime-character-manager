@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>角色数据采集器 V1.9</title>
+    <style>
+        :root {
+            --primary-color: #007bff; --secondary-color: #6c757d; --success-color: #28a745;
+            --danger-color: #dc3545; --light-gray: #f8f9fa; --dark-gray: #343a40;
+            --border-color: #dee2e6; --bg-color: #f0f2f5; --card-bg: #fff;
+            --text-color: #212529; --shadow: 0 2px 4px rgba(0,0,0,0.07);
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 0; background-color: var(--bg-color); color: var(--text-color);
+            display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+        }
+        header {
+            background-color: var(--card-bg); padding: 1rem 1.5rem; border-bottom: 1px solid var(--border-color);
+            display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; box-shadow: var(--shadow);
+            z-index: 10;
+        }
+        header h1 { margin: 0; font-size: 1.5rem; }
+        .main-container { display: flex; flex-grow: 1; overflow: hidden; }
+        
+        /* --- Left Workspace --- */
+        .workspace {
+            flex: 3; display: flex; flex-direction: column;
+            background-color: var(--card-bg); border-right: 1px solid var(--border-color);
+        }
+        .tab-nav {
+            display: flex; border-bottom: 1px solid var(--border-color); flex-shrink: 0;
+        }
+        .tab-nav button {
+            flex: 1; padding: 1rem; font-size: 1rem; font-weight: 600; border: none;
+            background-color: transparent; cursor: pointer; color: var(--secondary-color);
+            border-bottom: 3px solid transparent; transition: all 0.2s;
+        }
+        .tab-nav button.active { color: var(--primary-color); border-bottom-color: var(--primary-color); }
+        .tab-content { padding: 1.5rem; flex-grow: 1; overflow-y: auto; }
+        .tab-pane { display: none; }
+        .tab-pane.active { display: block; }
+
+        /* --- Right Staging Area --- */
+        .staging-area {
+            flex: 2; display: flex; flex-direction: column; background-color: var(--light-gray);
+        }
+        .staging-header {
+            padding: 1rem 1.5rem; background-color: #e9ecef;
+            border-bottom: 1px solid var(--border-color); font-weight: 600; font-size: 1.1rem;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .staging-header-actions { display: flex; gap: 0.5rem; }
+        #view-toggle-btn, #clear-staging-btn { font-size: 0.8rem; padding: 0.25rem 0.5rem; }
+        #clear-staging-btn { background-color: var(--danger-color); color: white; border-color: var(--danger-color); }
+        .staging-list { flex-grow: 1; overflow-y: auto; padding: 1rem; }
+        .staging-group { margin-bottom: 1.5rem; }
+        .staging-group-title { font-weight: bold; margin-bottom: 0.75rem; padding-bottom: 0.5rem; border-bottom: 2px solid var(--border-color); word-break: break-all; }
+        .staging-card {
+            display: flex; align-items: center; background-color: var(--card-bg);
+            padding: 0.75rem; border-radius: 6px; box-shadow: var(--shadow); margin-bottom: 0.75rem;
+            position: relative; transition: all 0.2s;
+        }
+        .staging-card img { width: 50px; height: 70px; object-fit: cover; border-radius: 4px; margin-right: 1rem; }
+        .staging-card-info { flex-grow: 1; min-width: 0; }
+        .staging-card-info h5 { margin: 0 0 5px; font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .staging-card-info p { margin: 0; font-size: 0.85rem; color: var(--secondary-color); max-height: 40px; overflow: hidden; }
+        .staging-card .remove-btn {
+            position: absolute; top: 5px; right: 5px; cursor: pointer;
+            background: #eee; border-radius: 50%; width: 20px; height: 20px;
+            display: flex; align-items: center; justify-content: center; font-weight: bold;
+            border: none; color: var(--secondary-color);
+        }
+        .staging-list.compact-mode .staging-group-title { font-size: 0.9em; margin-bottom: 0.5rem; }
+        .staging-list.compact-mode .staging-card { flex-direction: column; padding: 0.5rem; width: 80px; height: 100px; margin: 4px; }
+        .staging-list.compact-mode .staging-card-wrapper { display: flex; flex-wrap: wrap; }
+        .staging-list.compact-mode .staging-card img { width: 60px; height: 60px; margin-right: 0; margin-bottom: 5px; object-fit: cover; }
+        .staging-list.compact-mode .staging-card-info h5 { font-size: 0.8rem; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 70px;}
+        .staging-list.compact-mode .staging-card-info p { display: none; }
+
+        .placeholder { text-align: center; color: var(--secondary-color); padding: 2rem; }
+
+        /* --- General UI Components --- */
+        .form-group { margin-bottom: 1.5rem; }
+        label { font-weight: 600; display: block; margin-bottom: 0.5rem; }
+        input, select, textarea {
+            width: 100%; padding: 0.75rem; border: 1px solid var(--border-color);
+            border-radius: 5px; font-size: 1rem;
+        }
+        input[type="number"] { width: 80px; text-align: center; }
+        textarea { min-height: 120px; font-family: monospace; }
+        .btn {
+            padding: 0.75rem 1.5rem; font-size: 1rem; border-radius: 5px;
+            border: none; cursor: pointer; font-weight: 600;
+            transition: background-color 0.2s; white-space: nowrap;
+        }
+        .btn:disabled { background-color: var(--secondary-color); cursor: not-allowed; opacity: 0.65; }
+        .btn-primary { background-color: var(--primary-color); color: #fff; }
+        .btn-primary:not(:disabled):hover { background-color: #0056b3; }
+        .btn-secondary { background-color: var(--secondary-color); color: #fff; }
+        .btn-secondary:not(:disabled):hover { background-color: #5a6268; }
+        .btn-success { background-color: var(--success-color); color: #fff; }
+        .btn-success:not(:disabled):hover { background-color: #218838; }
+        .action-group { margin-top: 1rem; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+        .action-group .step-number { font-size: 1.5rem; font-weight: bold; color: var(--primary-color); margin-right: 0.5rem; }
+        .ai-instructions { background: var(--light-gray); border: 1px dashed var(--border-color); padding: 1rem; border-radius: 5px; margin-top: 1rem; font-size: 0.9rem; }
+        .ai-instructions pre { white-space: pre-wrap; word-wrap: break-word; margin: 0; }
+        .ai-instructions button { float: right; margin-top: -0.5rem; }
+        .prompt-container { display: flex; gap: 1rem; margin-bottom: 1.5rem; }
+        .prompt-container > div { flex: 1; }
+
+        /* --- API Results & Pagination --- */
+        .browse-controls { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+        .api-results-container { display: flex; flex-direction: column; gap: 1.5rem; }
+        .back-nav { flex-shrink: 0; }
+        .api-results-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 1rem; }
+        .api-card {
+            background-color: var(--light-gray); border-radius: 6px; overflow: hidden;
+            text-align: center; box-shadow: var(--shadow); transition: transform 0.2s, box-shadow 0.2s;
+            display: flex; flex-direction: column;
+        }
+        .api-card:hover { transform: translateY(-3px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .api-card-img-link { display: block; cursor: pointer; }
+        .api-card img { width: 100%; height: 180px; object-fit: cover; display: block; }
+        .api-card-title { padding: 0.75rem; font-size: 0.9rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-grow: 1; }
+        .api-card .add-btn {
+            background-color: var(--primary-color); color: white; border: none;
+            padding: 0.5rem; width: 100%; font-weight: bold; cursor: pointer; flex-shrink: 0;
+        }
+        .loading, .error { text-align: center; padding: 2rem; font-size: 1.2rem; color: var(--secondary-color); }
+        .pagination { display: flex; justify-content: center; align-items: center; gap: 0.5rem; margin-top: 1.5rem; flex-wrap: wrap; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>角色数据采集器 V1.9</h1>
+    </header>
+    <main class="main-container">
+        <div class="workspace">
+            <nav class="tab-nav">
+                <button id="tab-collect" class="active">① 采集</button>
+                <button id="tab-process">② 处理与导出</button>
+            </nav>
+            <div class="tab-content">
+                <div id="pane-collect" class="tab-pane active">
+                    <div class="form-group" style="display: flex; gap: 1rem; flex-wrap:wrap;">
+                        <input type="search" id="search-input" placeholder="输入动漫英文名搜索..." style="flex-grow:1; min-width: 200px;">
+                        <button id="search-btn" class="btn btn-primary">搜索</button>
+                    </div>
+                    <div class="form-group browse-controls">
+                        <label for="browse-mode-select" style="margin-bottom:0;">浏览模式:</label>
+                        <select id="browse-mode-select">
+                            <option value="season_now">当季新作</option>
+                            <option value="season_upcoming">即将播出</option>
+                            <option value="top_anime">最高排行</option>
+                            <option value="by_season">按季筛选</option>
+                        </select>
+                        <div id="by-season-controls" style="display:none; gap: 0.5rem; align-items:center;">
+                            <input type="number" id="season-year" min="1917">
+                            <select id="season-name">
+                                <option value="winter">冬季</option>
+                                <option value="spring">春季</option>
+                                <option value="summer">夏季</option>
+                                <option value="fall">秋季</option>
+                            </select>
+                            <button id="season-go-btn" class="btn btn-secondary">Go</button>
+                        </div>
+                    </div>
+                    <div id="api-results" class="api-results-container">
+                        <div class="placeholder">请选择浏览模式或进行搜索。</div>
+                    </div>
+                    <div id="pagination" class="pagination"></div>
+                </div>
+                <div id="pane-process" class="tab-pane">
+                    <div class="prompt-container">
+                        <div class="ai-instructions">
+                            <button id="copy-fill-prompt-btn" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.25rem 0.5rem;">复制</button>
+                            <strong>阶段一: 内容填充指令</strong>
+                            <pre id="ai-fill-prompt-template"></pre>
+                        </div>
+                        <div class="ai-instructions">
+                            <button id="copy-correction-prompt-btn" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.25rem 0.5rem;">复制</button>
+                            <strong>阶段二: 姓名校对指令</strong>
+                            <pre id="ai-correction-prompt-template"></pre>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <div class="action-group">
+                             <span class="step-number">1</span>
+                             <button id="export-ai-btn" class="btn btn-primary">生成待处理文本 (用于阶段一)</button>
+                        </div>
+                    </div>
+                     <div class="form-group">
+                        <label for="ai-input">AI返回的内容</label>
+                        <textarea id="ai-input" placeholder="将AI处理后的文本粘贴到此处，然后进行下一步..."></textarea>
+                    </div>
+                     <div class="form-group">
+                         <div class="action-group">
+                             <span class="step-number">2</span>
+                             <button id="import-ai-btn" class="btn btn-primary">解析AI内容并生成最终结果</button>
+                         </div>
+                    </div>
+                    <hr style="margin: 2rem 0;">
+                    <div class="form-group">
+                        <label for="batch-text-output">生成结果 (可用于批量导入)</label>
+                        <textarea id="batch-text-output" readonly placeholder="解析AI内容后，此处将生成可用于管理器的批量导入文本..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <div class="action-group">
+                            <span class="step-number">3</span>
+                            <button id="copy-batch-text-btn" class="btn btn-secondary">复制上方文本</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <aside class="staging-area">
+            <div class="staging-header">
+                <span>暂存区</span>
+                <div class="staging-header-actions">
+                    <button id="clear-staging-btn" class="btn">清空</button>
+                    <button id="view-toggle-btn" class="btn btn-secondary">紧凑视图</button>
+                </div>
+            </div>
+            <div id="staging-list" class="staging-list">
+                 <div class="placeholder">请从左侧添加角色。</div>
+            </div>
+        </aside>
+    </main>
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- STATE ---
+        let stagedCharacters = []; 
+        let processedData = {};
+        let currentCharacterList = [];
+        let previousViewState = null;
+        let isCompactView = false;
+        let activeFetchContext = {};
+        let animeDetailsCache = {};
+
+        // --- DOM ELEMENTS ---
+        const dom = {
+            tabs: { collect: document.getElementById('tab-collect'), process: document.getElementById('tab-process') },
+            panes: { collect: document.getElementById('pane-collect'), process: document.getElementById('pane-process') },
+            searchInput: document.getElementById('search-input'),
+            searchBtn: document.getElementById('search-btn'),
+            browseModeSelect: document.getElementById('browse-mode-select'),
+            bySeasonControls: document.getElementById('by-season-controls'),
+            seasonYear: document.getElementById('season-year'),
+            seasonName: document.getElementById('season-name'),
+            seasonGoBtn: document.getElementById('season-go-btn'),
+            apiResults: document.getElementById('api-results'),
+            pagination: document.getElementById('pagination'),
+            viewToggleBtn: document.getElementById('view-toggle-btn'),
+            clearStagingBtn: document.getElementById('clear-staging-btn'),
+            stagingList: document.getElementById('staging-list'),
+            aiFillPromptTemplate: document.getElementById('ai-fill-prompt-template'),
+            copyFillPromptBtn: document.getElementById('copy-fill-prompt-btn'),
+            aiCorrectionPromptTemplate: document.getElementById('ai-correction-prompt-template'),
+            copyCorrectionPromptBtn: document.getElementById('copy-correction-prompt-btn'),
+            exportAiBtn: document.getElementById('export-ai-btn'),
+            aiInput: document.getElementById('ai-input'),
+            importAiBtn: document.getElementById('import-ai-btn'),
+            batchTextOutput: document.getElementById('batch-text-output'),
+            copyBatchTextBtn: document.getElementById('copy-batch-text-btn'),
+        };
+
+        // --- API & CONSTANTS ---
+        const API_BASE = 'https://api.jikan.moe/v4';
+                const AI_FILL_PROMPT_TEXT = `【任务】
+请为以下每个[CHARACTER_ID]块补充信息。在补充信息后，请根据你生成的“角色中文名”作为参考，反向检查并修正“prompt”中的英文姓名顺序，确保其符合最通用的习惯。
+最后，将所有内容严格按照指定的[ANIME_BLOCK]格式，并用\`\`\`txt代码块包裹后返回。
+
+【重要规则】
+1.  **作品名归纳**: 在[ANIME_TITLE]块中，请将“作品中文名”归纳为整个系列的通用主名称，而不是具体季度或OVA的名称。
+2.  **Prompt作品名**: 在[CHARACTER]块的prompt中，作品名部分必须优先使用日文标题的罗马音拼写，这是确保AI绘画识别率的最高优先级规则。
+3.  **性别**: 在“男”、“女”、“扶她”、“未知”中选择。
+
+【返回格式】
+请务必使用\`\`\`txt代码块包裹你的完整回答，如下所示：
+\`\`\`txt
+[ANIME_BLOCK]
+[ANIME_TITLE]::作品MAL英文标题::作品日文罗马音(用于prompt)::作品中文名
+[CHARACTERS]
+[CHARACTER]::角色MAL_ID::prompt(格式: 角色名 (作品罗马音))::角色中文名::性别::年龄段::角色简介
+...
+[/ANIME_BLOCK]
+\`\`\`
+
+【示例】
+输入:
+[ANIME_TITLE]::Shingeki no Kyojin: The Final Season::進撃の巨人 The Final Season
+[CHARACTERS]
+[CHARACTER_ID]::464::Ackerman, Mikasa
+
+输出:
+\`\`\`txt
+[ANIME_BLOCK]
+[ANIME_TITLE]::Shingeki no Kyojin: The Final Season::shingeki no kyojin::进击的巨人
+[CHARACTERS]
+[CHARACTER]::464::mikasa ackerman (shingeki no kyojin)::三笠·阿克曼::女::青年::艾伦的青梅竹马，拥有强大的战斗能力，一直为了保护艾伦而战。
+[/ANIME_BLOCK]
+\`\`\`
+
+---
+【待处理数据】`;
+
+                const AI_CORRECTION_PROMPT_TEXT = `【深度校对任务】
+请仔细检查下面提供的每个[CHARACTER]数据块。你的唯一任务是：根据“角色中文名”，来判断“prompt”中的英文姓名顺序是否符合最通用、最广为人知的习惯。
+
+【校对指南】
+-   **核心原则**: 以中文名为准绳，判断英文名是“名-姓”还是“姓-名”更合适。
+-   **注意**: 并非所有英文名都是颠倒的，也并非所有日系角色都需要修改。
+-   **参考方法**: 你可以将中文名翻译成罗马音，并与给出的英文名进行比对，这可能有助于你判断。
+-   如果顺序错误，请**只修正prompt中的英文姓名部分**，其他所有内容和格式必须保持原样。
+
+【返回格式】
+请将修正后的所有[ANIME_BLOCK]内容，用\`\`\`txt代码块包裹后返回。
+任务完成后，请在\`\`\`代码块之外，另起一行，以列表形式总结你修改过的角色及其姓名变动情况。
+
+【示例】
+输入:
+[ANIME_BLOCK]
+...
+[CHARACTER]::11840::Lamperouge, Lelouch::鲁路修·兰佩路基::男::青年::...
+...
+[/ANIME_BLOCK]
+
+输出:
+\`\`\`txt
+[ANIME_BLOCK]
+...
+[CHARACTER]::11840::lelouch lamperouge (code geass)::鲁路修·兰佩路基::男::青年::...
+...
+[/ANIME_BLOCK]
+\`\`\`
+修改总结:
+- 鲁路修·兰佩路基: Lamperouge, Lelouch -> lelouch lamperouge
+
+---
+【待处理数据】
+[在此处粘贴第一阶段AI返回的文本]`;
+
+
+        // --- EVENT LISTENERS ---
+        dom.tabs.collect.addEventListener('click', () => switchTab('collect'));
+        dom.tabs.process.addEventListener('click', () => switchTab('process'));
+        dom.searchBtn.addEventListener('click', () => handleSearch(1));
+        dom.searchInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') handleSearch(1); });
+        dom.browseModeSelect.addEventListener('change', () => fetchByBrowseMode(1));
+        dom.seasonGoBtn.addEventListener('click', () => fetchBySeason(1));
+        dom.apiResults.addEventListener('click', handleApiResultsClick);
+        dom.stagingList.addEventListener('click', handleStagingListClick);
+        dom.viewToggleBtn.addEventListener('click', toggleCompactView);
+        dom.clearStagingBtn.addEventListener('click', clearStagingArea);
+        dom.copyFillPromptBtn.addEventListener('click', () => copyToClipboard(AI_FILL_PROMPT_TEXT, '阶段一指令已复制!'));
+        dom.copyCorrectionPromptBtn.addEventListener('click', () => copyToClipboard(AI_CORRECTION_PROMPT_TEXT, '阶段二指令已复制!'));
+        dom.exportAiBtn.addEventListener('click', handleExportForAI);
+        dom.importAiBtn.addEventListener('click', handleImportFromAI);
+        dom.copyBatchTextBtn.addEventListener('click', () => copyToClipboard(dom.batchTextOutput.value, '批量导入文本已复制！'));
+        dom.pagination.addEventListener('click', handlePaginationClick);
+
+        // --- CORE FUNCTIONS ---
+        function initialize() {
+            dom.aiFillPromptTemplate.textContent = AI_FILL_PROMPT_TEXT;
+            dom.aiCorrectionPromptTemplate.textContent = AI_CORRECTION_PROMPT_TEXT;
+            const now = new Date();
+            dom.seasonYear.value = now.getFullYear();
+            dom.seasonName.value = ['winter', 'spring', 'summer', 'fall'][Math.floor(now.getMonth() / 3)];
+            fetchByBrowseMode(1);
+        }
+
+        function switchTab(tabName) {
+            Object.values(dom.tabs).forEach(tab => tab.classList.remove('active'));
+            Object.values(dom.panes).forEach(pane => pane.classList.remove('active'));
+            dom.tabs[tabName].classList.add('active');
+            dom.panes[tabName].classList.add('active');
+        }
+
+        async function apiFetch(endpoint) {
+            try {
+                await new Promise(resolve => setTimeout(resolve, 400));
+                const response = await fetch(`${API_BASE}${endpoint}`);
+                if (!response.ok) throw new Error(`API Error: ${response.statusText} (${response.status})`);
+                return await response.json();
+            } catch (error) {
+                console.error("Fetch Error:", error);
+                showToast(`请求失败: ${error.message}`, 'error');
+                return null;
+            }
+        }
+
+        function renderStagingList() {
+            if (stagedCharacters.length === 0) {
+                dom.stagingList.innerHTML = `<div class="placeholder">请从左侧添加角色。</div>`;
+                return;
+            }
+            const groupedByAnime = stagedCharacters.reduce((acc, char) => {
+                const animeTitle = char.anime.title;
+                if (!acc[animeTitle]) acc[animeTitle] = [];
+                acc[animeTitle].push(char);
+                return acc;
+            }, {});
+
+            let html = '';
+            for (const animeTitle in groupedByAnime) {
+                const processedAnime = Object.values(processedData).find(p => p.source_en_original === animeTitle);
+                const displayTitle = processedAnime ? `${processedAnime.source_cn} (${processedAnime.source_en_series})` : animeTitle;
+                html += `<div class="staging-group"><div class="staging-group-title">${displayTitle}</div><div class="staging-card-wrapper">`;
+                groupedByAnime[animeTitle].forEach(char => {
+                    const pData = processedData[char.character.mal_id] || {};
+                    html += `
+                        <div class="staging-card" data-id="${char.character.mal_id}">
+                            <button class="remove-btn" data-id="${char.character.mal_id}">×</button>
+                            <img src="${char.character.images.jpg.image_url}" alt="${char.character.name}">
+                            <div class="staging-card-info">
+                                <h5>${pData.name_cn || char.character.name}</h5>
+                                <p>${pData.description || '简介待填充...'}</p>
+                            </div>
+                        </div>`;
+                });
+                html += `</div></div>`;
+            }
+            dom.stagingList.innerHTML = html;
+        }
+
+        function toggleCompactView() {
+            isCompactView = !isCompactView;
+            dom.stagingList.classList.toggle('compact-mode', isCompactView);
+            dom.viewToggleBtn.textContent = isCompactView ? '详细视图' : '紧凑视图';
+        }
+
+        function clearStagingArea() {
+            if (stagedCharacters.length === 0) return;
+            if (confirm('确定要清空暂存区的所有角色吗？此操作不可撤销。')) {
+                stagedCharacters = [];
+                processedData = {};
+                animeDetailsCache = {};
+                renderStagingList();
+                generateBatchText();
+                dom.aiInput.value = '';
+                showToast('暂存区已清空。');
+            }
+        }
+
+        // --- API FETCHING & RENDERING ---
+        function fetchByBrowseMode(page) {
+            const mode = dom.browseModeSelect.value;
+            dom.bySeasonControls.style.display = mode === 'by_season' ? 'flex' : 'none';
+            if (mode === 'by_season') {
+                dom.apiResults.innerHTML = `<div class="placeholder">请选择年份和季节后点击 "Go"。</div>`;
+                dom.pagination.innerHTML = '';
+                return;
+            }
+            let endpoint = '';
+            switch (mode) {
+                case 'season_now': endpoint = `/seasons/now?page=${page}`; break;
+                case 'season_upcoming': endpoint = `/seasons/upcoming?page=${page}`; break;
+                case 'top_anime': endpoint = `/top/anime?page=${page}`; break;
+            }
+            fetchAnimeList(endpoint, { type: 'browse', mode });
+        }
+        
+        function fetchBySeason(page) {
+            const year = dom.seasonYear.value;
+            const season = dom.seasonName.value;
+            const endpoint = `/seasons/${year}/${season}?page=${page}`;
+            fetchAnimeList(endpoint, { type: 'season', year, season });
+        }
+
+        async function handleSearch(page) {
+            const query = dom.searchInput.value.trim();
+            if (!query) return;
+            const endpoint = `/anime?q=${encodeURIComponent(query)}&page=${page}`;
+            fetchAnimeList(endpoint, { type: 'search', query });
+        }
+
+        async function fetchAnimeList(endpoint, context) {
+            activeFetchContext = { ...context, page: parseInt(endpoint.split('page=')[1] || 1) };
+            dom.apiResults.innerHTML = '<div class="loading">加载中...</div>';
+            dom.pagination.innerHTML = '';
+            const data = await apiFetch(endpoint);
+            if (data?.data) {
+                data.data.forEach(anime => {
+                    animeDetailsCache[anime.mal_id] = { 
+                        title: anime.title, 
+                        title_japanese: anime.title_japanese 
+                    };
+                });
+                const animeHtml = data.data.map(anime => `
+                    <div class="api-card">
+                        <a class="api-card-img-link" data-id="${anime.mal_id}" data-type="anime" data-title="${anime.title.replace(/"/g, '&quot;')}">
+                            <img src="${anime.images.jpg.image_url}" alt="${anime.title}">
+                        </a>
+                        <div class="api-card-title">${anime.title}</div>
+                    </div>`).join('');
+                dom.apiResults.innerHTML = `<div class="api-results-grid">${animeHtml}</div>`;
+                renderPagination(data.pagination);
+            }
+        }
+        
+        async function fetchCharacters(animeId, animeTitle) {
+            previousViewState = {
+                contentHTML: dom.apiResults.innerHTML, paginationHTML: dom.pagination.innerHTML,
+                context: activeFetchContext
+            };
+            dom.apiResults.innerHTML = '<div class="loading">加载角色...</div>';
+            dom.pagination.innerHTML = '';
+            const data = await apiFetch(`/anime/${animeId}/characters`);
+            if (data?.data) {
+                currentCharacterList = data.data.map(c => ({...c, anime: { mal_id: animeId, title: animeTitle }}));
+                const charactersHtml = currentCharacterList.map((item, index) => `
+                    <div class="api-card">
+                        <img src="${item.character.images.jpg.image_url}" alt="${item.character.name}">
+                        <div class="api-card-title">${item.character.name}</div>
+                        <button class="add-btn" data-index="${index}">+ 添加</button>
+                    </div>`).join('');
+                
+                const finalHtml = `<div class="back-nav"><button id="back-btn" class="btn btn-secondary">← 返回番剧列表</button></div><div class="api-results-grid">${charactersHtml}</div>`;
+                dom.apiResults.innerHTML = finalHtml;
+            }
+        }
+        
+        function renderPagination(pagination) {
+            if (!pagination?.last_visible_page || pagination.last_visible_page <= 1) {
+                dom.pagination.innerHTML = ''; return;
+            }
+            const { current_page, last_visible_page } = pagination;
+            dom.pagination.innerHTML = `
+                <button class="btn btn-secondary" ${current_page === 1 ? 'disabled' : ''} data-page="1">首页</button>
+                <button class="btn btn-secondary" ${!pagination.has_previous_page ? 'disabled' : ''} data-page="${current_page - 1}">‹</button>
+                <span>第 <input type="number" id="page-input" value="${current_page}" min="1" max="${last_visible_page}"> / ${last_visible_page} 页</span>
+                <button id="page-jump-btn" class="btn btn-primary">跳转</button>
+                <button class="btn btn-secondary" ${!pagination.has_next_page ? 'disabled' : ''} data-page="${current_page + 1}">›</button>
+                <button class="btn btn-secondary" ${current_page === last_visible_page ? 'disabled' : ''} data-page="${last_visible_page}">末页</button>
+            `;
+        }
+        
+        // --- EVENT HANDLERS ---
+        function handleApiResultsClick(e) {
+            const target = e.target;
+            if (target.classList.contains('add-btn')) {
+                const charIndex = parseInt(target.dataset.index);
+                const charData = currentCharacterList[charIndex];
+                if (charData && !stagedCharacters.some(c => c.character.mal_id === charData.character.mal_id)) {
+                    stagedCharacters.push(charData); renderStagingList();
+                }
+            } else if (target.id === 'back-btn') {
+                handleBack();
+            } else {
+                const animeLink = target.closest('[data-type="anime"]');
+                if (animeLink) {
+                    fetchCharacters(parseInt(animeLink.dataset.id), animeLink.dataset.title);
+                }
+            }
+        }
+        
+        function handleStagingListClick(e) {
+            if (e.target.classList.contains('remove-btn')) {
+                const charId = parseInt(e.target.dataset.id);
+                stagedCharacters = stagedCharacters.filter(c => c.character.mal_id !== charId);
+                delete processedData[charId]; 
+                renderStagingList();
+                generateBatchText();
+            }
+        }
+        
+        function handlePaginationClick(e) {
+            let page = null;
+            if (e.target.dataset.page) {
+                page = parseInt(e.target.dataset.page);
+            } else if (e.target.id === 'page-jump-btn') {
+                const input = document.getElementById('page-input');
+                const pageNum = parseInt(input.value);
+                if (input && pageNum >= 1 && pageNum <= parseInt(input.max)) { page = pageNum; }
+            }
+            if(page === null) return;
+            
+            const { type, mode, year, season, query } = activeFetchContext;
+            switch(type) {
+                case 'browse': fetchByBrowseMode(page); break;
+                case 'season': fetchBySeason(page); break;
+                case 'search': handleSearch(page); break;
+                default: fetchByBrowseMode(page); break;
+            }
+        }
+        
+        function handleBack() {
+            if (previousViewState) {
+                activeFetchContext = previousViewState.context;
+                dom.apiResults.innerHTML = previousViewState.contentHTML;
+                dom.pagination.innerHTML = previousViewState.paginationHTML;
+                previousViewState = null;
+                currentCharacterList = [];
+            }
+        }
+
+        async function handleExportForAI() {
+            if (stagedCharacters.length === 0) { alert('暂存区没有角色！'); return; }
+
+            dom.exportAiBtn.disabled = true;
+            dom.exportAiBtn.textContent = '生成中...';
+            
+            const groupedByAnime = stagedCharacters.reduce((acc, char) => {
+                const animeId = char.anime.mal_id;
+                if (!acc[animeId]) {
+                    acc[animeId] = { title: char.anime.title, characters: [] };
+                }
+                const cleanedName = char.character.name.replace(/, /g, ' ');
+                acc[animeId].characters.push({ id: char.character.mal_id, name: cleanedName });
+                return acc;
+            }, {});
+
+            let text = '';
+            for (const animeId in groupedByAnime) {
+                let animeInfo = animeDetailsCache[animeId];
+                if (!animeInfo) {
+                    const data = await apiFetch(`/anime/${animeId}`);
+                    if (data?.data) {
+                        animeInfo = { title: data.data.title, title_japanese: data.data.title_japanese };
+                        animeDetailsCache[animeId] = animeInfo;
+                    } else {
+                        animeInfo = { title: groupedByAnime[animeId].title, title_japanese: "N/A" };
+                    }
+                }
+                
+                text += `[ANIME_TITLE]::${animeInfo.title}::${animeInfo.title_japanese}\n[CHARACTERS]\n`;
+                groupedByAnime[animeId].characters.forEach(char => {
+                    text += `[CHARACTER_ID]::${char.id}::${char.name}\n`;
+                });
+            }
+
+            copyToClipboard(text.trim(), '待处理文本已复制！');
+            dom.exportAiBtn.disabled = false;
+            dom.exportAiBtn.textContent = '生成待处理文本 (用于阶段一)';
+        }
+        
+        function handleImportFromAI() {
+            const text = dom.aiInput.value.trim();
+            if (!text) { alert('请输入AI返回的内容！'); return; }
+
+            processedData = {};
+            const blocks = text.split('[ANIME_BLOCK]').filter(Boolean);
+            let parsedCount = 0;
+
+            blocks.forEach(block => {
+                const titleMatch = block.match(/\[ANIME_TITLE\]::(.*?)::(.*?)::(.*)/);
+                if (!titleMatch) return;
+                const [, source_en_original, source_en_series, source_cn] = titleMatch.map(s => s.trim());
+                
+                const lines = block.split('\n');
+                for(const line of lines) {
+                    if (line.trim().startsWith('[CHARACTER]::')) {
+                        const parts = line.trim().substring('[CHARACTER]::'.length).split('::');
+                        if (parts.length < 6) continue;
+                        
+                        const mal_id = parseInt(parts[0]);
+                        const prompt = parts[1] ? parts[1].trim() : '';
+                        const name_cn = parts[2] ? parts[2].trim() : '';
+                        const gender = parts[3] ? parts[3].trim() : '';
+                        const age = parts[4] ? parts[4].trim() : '';
+                        const description = parts.slice(5).join('::').trim();
+                        
+                        const char = stagedCharacters.find(c => c.character.mal_id === mal_id);
+                        if (char) {
+                            processedData[mal_id] = {
+                                mal_id, prompt, name_cn, gender, age, description,
+                                source_en_original, source_en_series, source_cn, 
+                                imageUrl: char.character.images.jpg.image_url
+                            };
+                            parsedCount++;
+                        }
+                    }
+                }
+            });
+            renderStagingList();
+            generateBatchText();
+            showToast(`解析完成！成功处理 ${parsedCount} 个角色。`);
+        }
+
+        function generateBatchText() {
+            let batchText = '';
+            // We need to iterate over stagedCharacters to maintain order
+            stagedCharacters.forEach(char => {
+                const pData = processedData[char.character.mal_id];
+                if (!pData) return;
+                
+                // Reconstruct the prompt from its parts for the final output
+                const promptName = pData.prompt.match(/^(.*?)\s*\(/)?.[1].trim() || pData.prompt;
+                const promptSource = pData.prompt.match(/\((.*?)\)/)?.[1].trim() || pData.source_en_series;
+
+                batchText += `[START_ITEM]\n`;
+                batchText += `name::${pData.name_cn}\n`;
+                batchText += `source::${pData.source_cn}\n`;
+                batchText += `prompt_name::${promptName}\n`;
+                batchText += `prompt_source::${promptSource}\n`;
+                batchText += `gender::${pData.gender}\n`;
+                batchText += `age::${pData.age}\n`;
+                batchText += `mal_id::${pData.mal_id}\n`;
+                batchText += `imageUrl::${pData.imageUrl}\n`;
+                batchText += `description::\n${pData.description}\n`;
+                batchText += `[END_ITEM]\n\n`;
+            });
+            dom.batchTextOutput.value = batchText.trim();
+        }
+
+        function copyToClipboard(text, msg) {
+            if(!text) { alert("没有内容可复制。"); return; }
+            navigator.clipboard.writeText(text).then(() => showToast(msg || '已复制到剪贴板！'))
+             .catch(() => alert('复制失败！'));
+        }
+
+        function showToast(message, type = 'success', duration = 3000) {
+            const toast = document.createElement('div');
+            toast.textContent = message;
+            toast.style.position = 'fixed';
+            toast.style.bottom = '20px';
+            toast.style.left = '50%';
+            toast.style.transform = 'translateX(-50%)';
+            toast.style.backgroundColor = type === 'error' ? 'var(--danger-color)' : 'var(--dark-gray)';
+            toast.style.color = 'white';
+            toast.style.padding = '10px 20px';
+            toast.style.borderRadius = '5px';
+            toast.style.zIndex = '9999';
+            toast.style.opacity = '0';
+            toast.style.transition = 'opacity 0.3s';
+            document.body.appendChild(toast);
+            
+            setTimeout(() => { toast.style.opacity = '1'; }, 10);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => { document.body.removeChild(toast); }, 300);
+            }, duration);
+        }
+
+        // --- INITIALIZATION ---
+        initialize();
+    });
+    </script>
+</body>
+</html>
