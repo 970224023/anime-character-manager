@@ -380,7 +380,7 @@
             
             // 【新代码】尝试加载默认的在线数据
             console.log("正在尝试加载默认数据...");
-            fetch('./2015-2024角色') // <-- 关键！请求和你html在同一目录下的这个json文件
+            fetch('./2015-2024角色.json') // <-- 关键！请求和你html在同一目录下的这个json文件
                 .then(response => {
                     if (!response.ok) {
                         throw new Error(`网络响应错误: ${response.statusText}`);
