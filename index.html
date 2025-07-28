@@ -347,10 +347,29 @@
         };
 
         // --- 3. INITIALIZE & TEMPLATES ---
-        function initializeApp() {
+            function initializeApp() {
             setupModalHTML();
             addEventListeners();
-            render();
+            
+            // 【新代码】尝试加载默认的在线数据
+            console.log("正在尝试加载默认数据...");
+            fetch('./2015-2024部分角色V3') // <-- 关键！请求和你html在同一目录下的这个json文件
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`网络响应错误: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log("默认数据加载成功！");
+                    appData = migrateData(data); // 使用加载的数据
+                    render(); // 渲染页面
+                })
+                .catch(error => {
+                    console.error("加载默认数据失败:", error);
+                    // 即使加载失败，也渲染一个空页面，等待用户手动加载
+                    render(); 
+                });
         }
 
         function setupModalHTML() {
