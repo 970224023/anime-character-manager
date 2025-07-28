@@ -378,25 +378,42 @@
             setupModalHTML();
             addEventListeners();
             
-            // 【新代码】尝试加载默认的在线数据
-            console.log("正在尝试加载默认数据...");
-            fetch('./2015-2024角色.json') // <-- 关键！请求和你html在同一目录下的这个json文件
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`网络响应错误: ${response.statusText}`);
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    console.log("默认数据加载成功！");
-                    appData = migrateData(data); // 使用加载的数据
-                    render(); // 渲染页面
-                })
-                .catch(error => {
-                    console.error("加载默认数据失败:", error);
-                    // 即使加载失败，也渲染一个空页面，等待用户手动加载
-                    render(); 
-                });
+            // 首先渲染一个空的界面结构，确保所有按钮和功能都已准备就绪。
+            render(); 
+            
+            // 【新的加载逻辑】尝试加载默认的在线数据
+            // 这个函数只在网站环境(http/https)下执行，本地file://环境则直接跳过
+            loadDefaultData(); 
+        }
+
+        async function loadDefaultData() {
+            // 检查当前是否在网络环境 (http 或 https)
+            if (!window.location.protocol.startsWith('http')) {
+                console.log("当前为本地file://环境，跳过默认数据加载。请使用“加载”按钮手动选择文件。");
+                return;
+            }
+
+            // 在这里替换成你上传到GitHub的JSON文件名，并加上版本号以防缓存
+            const defaultDataUrl = './2015-2024角色.json?v=1.0'; 
+            
+            console.log(`正在从 ${defaultDataUrl} 加载默认数据...`);
+            try {
+                const response = await fetch(defaultDataUrl);
+                if (!response.ok) {
+                    throw new Error(`网络响应错误: ${response.status} ${response.statusText}`);
+                }
+                const data = await response.json();
+                console.log("默认数据加载成功！");
+                appData = migrateData(data);
+                
+                // 数据加载成功后，重新渲染整个页面
+                render(); 
+                showToast('默认数据加载成功！');
+
+            } catch (error) {
+                console.error("加载默认数据失败:", error);
+                showToast('自动加载默认数据失败，您可手动加载。', 'error');
+            }
         }
 
         function setupModalHTML() {
