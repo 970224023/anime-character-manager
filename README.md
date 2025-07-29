@@ -18,6 +18,7 @@
     ![快速查找作品](https://raw.githubusercontent.com/970224023/anime-character-manager/main/screenshots/06_category_index.jpg)
 
 -   **详情速览**: 单击任意角色卡片，即可在右侧详情栏查看其高清大图、人物简介、属性标签等信息。
+-   **Prompt微调工具**: 详情栏提供了【调换】按钮，可一键调换Prompt中姓与名的顺序，以应对部分角色因姓名顺序错误而无法被AI识别的问题。
     ![角色详细信息](https://raw.githubusercontent.com/970224023/anime-character-manager/main/screenshots/04_detail_panel.jpg)
 
 -   **便捷的Prompt复制**: **再次单击已选中的卡片**，或点击详情栏的【复制Prompt】按钮，即可快速复制优化后的AI绘画提示词。
@@ -25,8 +26,6 @@
 
 -   **图文双视图**: 可在紧凑的**文字列表**和直观的**图片画廊**模式之间自由切换，满足不同浏览习惯。（注：为保证流畅，图文模式仅在单个作品分类下生效）
     ![图文切换与编辑模式](https://raw.githubusercontent.com/970224023/anime-character-manager/main/screenshots/07_view_modes.jpg)
-
--   **Prompt微调工具**: 详情栏提供了【调换】按钮，可一键调换Prompt中姓与名的顺序，以应对部分角色因姓名顺序错误而无法被AI识别的问题。
 
 -   **安全编辑模式**: 提供全局【编辑】开关。开启后，界面背景会变为护眼的绿色以作提示，此时单击卡片将直接进入编辑界面，有效防止误操作。
     ![编辑角色界面](https://raw.githubusercontent.com/970224023/anime-character-manager/main/screenshots/05_edit_modal.jpg)
